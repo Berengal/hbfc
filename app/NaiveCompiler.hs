@@ -34,4 +34,3 @@ compileToLLVM is =
   withContext \ctx -> do
     withModuleFromAST ctx astModule \cppModule -> do
       moduleLLVMAssembly cppModule
-    
