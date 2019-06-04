@@ -21,19 +21,37 @@ description:         Please see the README on GitHub at <https://github.com/Bere
 
 dependencies:
 - base >= 4.7 && < 5
+- llvm-hs >= 8.0.0 && < 8.1
+- llvm-hs-pure >= 8.0.0 && < 8.1
+- containers >= 0.6.0.1 && < 0.7
+- mtl >= 2.2.2 && < 2.3
+- bytestring >= 0.10.8.2 && < 0.11
 
+default-extensions:
+  - NondecreasingIndentation
+  
 library:
   source-dirs: src
 
 executables:
-  brainfuck-exe:
-    main:                Main.hs
+  bfi:
+    main:                Interpreter
     source-dirs:         app
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    - -XNondecreasingIndentation
+      - -O2
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+    - brainfuck
+  bfc:
+    main:                NaiveCompiler
+    source-dirs:         app
+    ghc-options:
+      - -O2
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
     - brainfuck
 
@@ -42,8 +60,8 @@ tests:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
     - brainfuck
