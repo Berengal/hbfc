@@ -36,10 +36,10 @@ instance Show BFICode where
   show BFIOut = "."
 
 toBFICode :: [BFInst] -> [BFICode]
-toBFICode = fst . go [] []
+toBFICode = fst . go [] (error "invalid code (unmatched backjmp)")
   where
     go :: [BFICode] -> [Zipper BFICode] -> [BFInst] -> ([BFICode], [Zipper BFICode])
-    go _ _ [] = ([], [])
+    go _ _ [] = ([], error "invalid code (unmatched fwdjmp)")
     go prev ~fjmps@(fjmp:fjmpTail) (i:is) = result
       where
         (next, bjmps) = go (head (fst result):prev) fjmps is
