@@ -13,6 +13,8 @@ import Language.Brainfuck.Parser
 import LLVM.AST hiding (function)
 import LLVM.AST.Type
 import LLVM.AST.Constant
+import LLVM.AST.Global
+import qualified LLVM.AST.Global as Glob
 import LLVM.AST.Instruction hiding (function)
 import LLVM.AST.IntegerPredicate
 
@@ -64,14 +66,35 @@ popJmpStack = do
   modify \s ->s{jmpStack=t}
   return h
 
+size_type = i64
+size_t n = Int 64 0
+
+noBuffering = ConstantOperand (Int 32 2)
+
 mainModule :: [BFInst] -> ModuleBuilder ()
 mainModule program = do
   getch <- extern "getchar" [] i32
   putch <- extern "putchar" [i32] i32
+  file  <- typedef "FILE" Nothing
+
+  let stdoutDef = GlobalDefinition $ globalVariableDefaults
+        { name = "stdout"
+        , Glob.type'= ptr file
+        , isConstant = True
+        }
+      stdout = ConstantOperand (GlobalReference (ptr (ptr file)) "stdout")
+  emitDefn stdoutDef
+  setvbuf <- extern "setvbuf" [ptr file, ptr i8, i32, size_type] i32
   let arrayType = (ArrayType 30000 i8)
   dataArray <- global "data" arrayType (AggregateZero arrayType)
   
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> mdo
+    h <- load stdout 1
+    call setvbuf [ (h, [])
+                 , (ConstantOperand (Null (ptr i8)), [])
+                 , (noBuffering, [])
+                 , (ConstantOperand (size_t 0), [])
+                 ]
     dp <- int32 0
     let initialState =
           CS { dataPointer = dp
