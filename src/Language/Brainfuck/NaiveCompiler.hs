@@ -22,6 +22,7 @@ import LLVM.IRBuilder.Module
 
 import Control.Monad.State
 import Data.Map
+import Data.Maybe (fromJust)
 
 
 data CompilerState = CS
@@ -29,8 +30,7 @@ data CompilerState = CS
   , dataArray :: !Operand
   , getCh :: !Operand
   , putCh :: !Operand
-  , backJmpStack :: [JumpInfo]
-  , fwdJmpStack :: [JumpInfo]
+  , jmpStack :: ![JumpInfo]
   }
 
 data JumpInfo = JI { jmpDp :: !Operand
@@ -54,24 +54,14 @@ putChar = putCh <$> get
 setDp :: Operand -> BrainfuckCompiler ()
 setDp dp = modify \s -> s{dataPointer=dp}
 
-pushBackJmpStack :: JumpInfo -> BrainfuckCompiler ()
-pushBackJmpStack jmpInfo =
-  modify \s@CS{..} -> s{backJmpStack=jmpInfo:backJmpStack}
-popBackJmpStack :: BrainfuckCompiler JumpInfo
-popBackJmpStack = do
-  s <- gets backJmpStack
+pushJmpStack :: JumpInfo -> BrainfuckCompiler ()
+pushJmpStack jmpInfo =
+  modify \s@CS{..} -> s{jmpStack=jmpInfo:jmpStack}
+popJmpStack :: BrainfuckCompiler JumpInfo
+popJmpStack = do
+  s <- gets jmpStack
   let (h:t) = s
-  modify \s ->s{backJmpStack=t}
-  return h
-
-pushFwdJmpStack :: JumpInfo -> BrainfuckCompiler ()
-pushFwdJmpStack jmpInfo =
-  modify \s@CS{..} -> s{fwdJmpStack=jmpInfo:fwdJmpStack}
-popFwdJmpStack :: BrainfuckCompiler JumpInfo
-popFwdJmpStack = do
-  s <- gets fwdJmpStack
-  let (h:t) = s
-  modify \s ->s{fwdJmpStack=t}
+  modify \s ->s{jmpStack=t}
   return h
 
 mainModule :: [BFInst] -> ModuleBuilder ()
@@ -83,55 +73,59 @@ mainModule program = do
   
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> mdo
     dp <- int32 0
-    let compile = mapM_ compileInst program
-        initialState =
+    let initialState =
           CS { dataPointer = dp
              , dataArray = dataArray
              , getCh = getch
              , putCh = putch
-             , backJmpStack = []
-             , fwdJmpStack = fwdJmpStack finalState
+             , jmpStack = []
              }
-    (_, finalState) <- runBrainfuckCompiler compile initialState
+    (_, finalState) <- runBrainfuckCompiler (compile program) initialState
     ret =<< int32 0
     
   return ()
 
 type CompilerContinuation = Maybe (Operand, Name, Name, [BFInst])
 
-compileInst :: BFInst -> BrainfuckCompiler ()
-compileInst = \case
+compile :: [BFInst] -> BrainfuckCompiler (Maybe (JumpInfo, [BFInst]))
+compile [] = return Nothing
+compile (i:rest) = case i of
   IncD -> named "+" do
     index <- dataIndex
     v <- load index 1
     v' <- add v =<< int8 1
     store index 1 v'
+    compile rest
   DecD -> named "-" do
     index <- dataIndex
     v <- load index 1
     v' <- sub v =<< int8 1
     store index 1 v'
+    compile rest
   DRig -> named ">" do
     dp <- getDp
     dp' <- add dp =<< int32 1
     setDp dp'
+    compile rest
   DLef -> named "<" do
     dp <- getDp
     dp' <- sub dp =<< int32 1
     setDp dp'
+    compile rest
   JmpF -> named "[" mdo
     index <- dataIndex
     v <- load index 1
     z <- int8 0
     eq <- icmp EQ z v
-    condBr eq (jmpFrom jmpInfo) nextBlock
+    condBr eq (jmpTo jmpInfo) nextBlock
     prevBlock <- currentBlock
     nextBlock <- block
     dp <- getDp
-    pushBackJmpStack (JI dp prevBlock nextBlock)
-    jmpInfo <- popFwdJmpStack
+    pushJmpStack (JI dp prevBlock nextBlock)
     dp' <- phi [(dp, prevBlock), (jmpDp jmpInfo, jmpFrom jmpInfo)]
     setDp dp'
+    (jmpInfo, rest') <- fromJust <$> compile rest
+    compile rest'
   JmpB -> named "]" mdo
     index <- dataIndex
     v <- load index 1
@@ -141,11 +135,10 @@ compileInst = \case
     prevBlock <- currentBlock
     nextBlock <- block
     dp <- getDp
-    pushFwdJmpStack (JI dp prevBlock nextBlock)
-    jmpInfo <- popBackJmpStack
+    jmpInfo <- popJmpStack
     dp' <- phi [(dp, prevBlock), (jmpDp jmpInfo, jmpFrom jmpInfo)]
     setDp dp'
-    
+    return (Just (JI dp prevBlock nextBlock, rest))
   Inp -> named "," do
     index <- dataIndex
     v <- load index 1
@@ -156,13 +149,14 @@ compileInst = \case
     isEof <- icmp EQ r eof
     v' <- select isEof v c
     store index 1 v'
+    compile rest
   Out -> named "." do
     index <- dataIndex
     v <- load index 1
     c <- sext v i32
     putch <- putChar
     call putch [(c, [])]
-    return ()
+    compile rest
 
 dataIndex :: BrainfuckCompiler Operand
 dataIndex = do z <- int32 0
