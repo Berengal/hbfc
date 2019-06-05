@@ -73,18 +73,19 @@ noBuffering = ConstantOperand (Int 32 2)
 
 mainModule :: [BFInst] -> ModuleBuilder ()
 mainModule program = do
+  fileDef <- typedef "FILE" Nothing
   getch <- extern "getchar" [] i32
   putch <- extern "putchar" [i32] i32
-  file  <- typedef "FILE" Nothing
+  setvbuf <- extern "setvbuf" [ptr fileDef, ptr i8, i32, size_type] i32
 
   let stdoutDef = GlobalDefinition $ globalVariableDefaults
         { name = "stdout"
-        , Glob.type'= ptr file
+        , Glob.type'= ptr fileDef
         , isConstant = True
         }
-      stdout = ConstantOperand (GlobalReference (ptr (ptr file)) "stdout")
+      stdout = ConstantOperand (GlobalReference (ptr (ptr fileDef)) "stdout")
   emitDefn stdoutDef
-  setvbuf <- extern "setvbuf" [ptr file, ptr i8, i32, size_type] i32
+  
   let arrayType = (ArrayType 30000 i8)
   dataArray <- global "data" arrayType (AggregateZero arrayType)
   
@@ -107,8 +108,6 @@ mainModule program = do
     ret =<< int32 0
     
   return ()
-
-type CompilerContinuation = Maybe (Operand, Name, Name, [BFInst])
 
 compile :: [BFInst] -> BrainfuckCompiler (Maybe (JumpInfo, [BFInst]))
 compile [] = return Nothing
