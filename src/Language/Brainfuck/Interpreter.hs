@@ -12,20 +12,65 @@ import System.IO
 
 -}
 
-data BFState = BF { dp :: !(Zipper Word8)  -- Data pointer
-                  , ip :: !(Zipper BFInst) -- Instruction pointer
-                  }
+data Zipper a = Z [a] a [a]
   deriving (Show, Eq)
+
+data BFICode
+  = BFIAdd
+  | BFISub
+  | BFIRig
+  | BFILef
+  | BFIJmF (Zipper BFICode)
+  | BFIJmB (Zipper BFICode)
+  | BFIInp
+  | BFIOut
+
+instance Show BFICode where
+  show BFIAdd = "+"
+  show BFISub = "-"
+  show BFIRig = ">"
+  show BFILef = "<"
+  show (BFIJmF _) = "["
+  show (BFIJmB _) = "]"
+  show BFIInp = ","
+  show BFIOut = "."
+
+toBFICode :: [BFInst] -> [BFICode]
+toBFICode = fst . go [] []
+  where
+    go :: [BFICode] -> [Zipper BFICode] -> [BFInst] -> ([BFICode], [Zipper BFICode])
+    go _ _ [] = ([], [])
+    go prev ~fjmps@(fjmp:fjmpTail) (i:is) = result
+      where
+        (next, bjmps) = go (head (fst result):prev) fjmps is
+        result = case i of
+          IncD -> (BFIAdd : next, bjmps)
+          DecD -> (BFISub : next, bjmps)
+          DRig -> (BFIRig : next, bjmps)
+          DLef -> (BFILef : next, bjmps)
+          JmpF -> let (next', (bjmp':bjmps')) = go (this:prev) (thisZ:fjmps) is
+                      thisZ = Z prev this next'
+                      this = BFIJmF bjmp'
+                  in (this:next', bjmps')
+          JmpB -> let this = BFIJmB fjmp
+                      thisZ = Z prev this next'
+                      (next', bjmps) = go (this:prev) fjmpTail is
+                  in (this:next', thisZ:bjmps)
+          Inp  -> (BFIInp : next, bjmps)
+          Out  -> (BFIOut : next, bjmps)
+
+
+data BFState = BF { dp :: (Zipper Word8)  -- Data pointer
+                  , ip :: (Zipper BFICode) -- Instruction pointer
+                  }
+  deriving Show
 
 setIp ip state = state{ip=ip}
 setDp dp state = state{dp=dp}
 
-freshState :: [BFInst] -> Maybe BFState
+freshState :: [BFICode] -> Maybe BFState
 freshState (i:is) = Just $ BF (Z [] 0 []) (Z [] i is)
 freshState _ = Nothing
-
-data Zipper a = Z [a] !a [a]
-  deriving (Show, Eq)
 
 val (Z _ v _) = v
 setVal (Z l _ r) v = Z l v r
@@ -49,48 +94,35 @@ c2w = fromIntegral . ord
 
 step :: BFState -> IO (Maybe BFState)
 step state@BF{..} = case val ip of
-  IncD -> uptDp (dInc dp)
-  DecD -> uptDp (dDec dp)
-  DRig -> uptDp (dRight dp)
-  DLef -> uptDp (dLeft dp)
   
-  JmpF -> if val dp == 0 then
-            uptIp (zipBracketF ip)
-          else
-            return nstate
-  JmpB -> if val dp /= 0 then
-            uptIp (zipBracketB ip)
-          else
-            return nstate
+  BFIAdd -> uptDp (dInc dp)
+  BFISub -> uptDp (dDec dp)
+  BFIRig -> uptDp (dRight dp)
+  BFILef -> uptDp (dLeft dp)
+  
+  BFIJmF ip' -> if val dp == 0 then
+                  uptIp ip'
+                else
+                  return nstate
+  BFIJmB ip' -> if val dp /= 0 then
+                  uptIp ip'
+                else
+                  return nstate
             
-  Inp  -> do
+  BFIInp -> do
     eof <- isEOF
     if eof then return nstate else do
     c <- getChar
     uptDp (setVal dp (c2w c))
     
-  Out  -> do putChar (w2c (val dp))
-             return nstate
+  BFIOut -> do putChar (w2c (val dp))
+               return nstate
              
   where nstate = flip setIp state <$> iRight ip
         uptDp dp = return (setDp dp <$> nstate)
-        uptIp ip = return (flip setIp state <$> ip)
+        uptIp ip = return (Just (setIp ip state))
 
--- Zip to matching bracket helpers
-zipBracketF :: Zipper BFInst -> Maybe (Zipper BFInst)
-zipBracketF z = zipBracket JmpF JmpB iRight 0 z
-
-zipBracketB :: Zipper BFInst -> Maybe (Zipper BFInst)
-zipBracketB z = zipBracket JmpB JmpF iLeft 0 z
-
-zipBracket up down dir = go
-  where go n z | n == 1 && v == down = iRight z
-               | v == up   = dir z >>= go (n+1)
-               | v == down = dir z >>= go (n-1)
-               | otherwise = dir z >>= go n
-          where v = val z
-
-run :: [BFInst] -> IO ()
+run :: [BFICode] -> IO ()
 run program = go (freshState program)
   where
     go Nothing = return ()

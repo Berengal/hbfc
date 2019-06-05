@@ -16,7 +16,7 @@ main = do
             getLine
           else
             readFile (head args)
-  case parse prog of
+  case toBFICode <$> parse prog of
     Nothing -> putStrLn "Invalid Program"
     Just p  -> do
       hSetBuffering stdout NoBuffering
