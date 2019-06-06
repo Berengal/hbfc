@@ -19,13 +19,15 @@ data PrimDefs = PrimDefs
   , noBuffering :: Operand
   , stdout :: Operand
   , typeSize_t :: Type
-  , size_t :: Integer -> Constant
+  , size_t :: Integer -> Operand
+  , nullPtr :: Type -> Operand
   }
 
 defaultDefs :: (MonadModuleBuilder m) => m PrimDefs
 defaultDefs = do
   let typeSize_t = i64
-      size_t n = Int 64 n
+      size_t n = ConstantOperand (Int 64 n)
+      nullPtr t = ConstantOperand (Null (ptr t))
       noBuffering = ConstantOperand (Int 32 2)
   typeFile <- typedef "FILE" Nothing
   getch <- extern "getchar" [] i32

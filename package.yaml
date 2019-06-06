@@ -44,7 +44,7 @@ executables:
       - -with-rtsopts=-N
     dependencies:
     - brainfuck
-  bfc:
+  bfcn:
     main:                NaiveCompiler
     source-dirs:         app
     ghc-options:
@@ -54,7 +54,17 @@ executables:
       - -with-rtsopts=-N
     dependencies:
     - brainfuck
-
+  bfc:
+    main:                Compiler
+    source-dirs:         app
+    ghc-options:
+      - -O2
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+    - brainfuck    
+    
 tests:
   brainfuck-test:
     main:                Spec.hs

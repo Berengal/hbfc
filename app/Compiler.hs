@@ -2,10 +2,10 @@
 {-# language NondecreasingIndentation #-}
 {-# language BlockArguments #-}
 
-module NaiveCompiler where
+module Compiler where
 
-import Language.Brainfuck.Compiler.NaiveCompiler (mainModule)
 import Language.Brainfuck.Parser
+import Language.Brainfuck.Compiler
 import BFUtils
 
 import qualified Data.ByteString.Char8 as BS
@@ -20,8 +20,10 @@ main = do
     Nothing -> putStrLn "Invalid program"
     Just is -> compileToLLVM is >>= BS.putStrLn
 
+compileToLLVM :: [BFInst] -> IO BS.ByteString
 compileToLLVM is =
-  let astModule = buildModule "main" (mainModule is)
+  let intermediate = inst2Seq is
+      astModule = buildModule "main" (mainModule intermediate)
   in do
   initializeNativeTarget
   withContext \ctx -> do

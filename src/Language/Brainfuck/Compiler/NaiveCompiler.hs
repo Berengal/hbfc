@@ -79,9 +79,9 @@ mainModule program = do
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> mdo
     h <- load stdout 1
     call setvbuf [ (h, [])
-                 , (ConstantOperand (Null (ptr i8)), [])
+                 , (nullPtr i8, [])
                  , (noBuffering, [])
-                 , (ConstantOperand (size_t 0), [])
+                 , (size_t 0, [])
                  ]
     dp <- int32 0
     let initialState =
