@@ -1,0 +1,57 @@
+
+* Compiler frontend
+** TODO  Compiler flags
+*** TODO Optimization
+*** TODO Output
+*** TODO Different backends (when implemented
+*** TODO Data array size/start position, infinite array/cell size
+* Compiler backend
+** TODO Add support for different int-sizes
+** TODO Add arbitrary-size integer runtime support (gmp)
+** TODO Configurable data array size
+** TODO [#C] Configurable target-machine properties
+   Not hardcoded to x86-64, no hard-coded size_t
+* TODO Optimizing compiler
+* [#C] Interpreter improvements
+** Design for external manipulation
+   Current design works for running a program from start to finish.
+   A debugger would want to update the program underway (costly
+   updates is ok).
+   
+* [#C] Debugger
+** TODO Debugging UI
+*** Proposed design:
+    - Split screen top/bottom, instructions displayed on top, data on
+      bottom. Ex:
+
+            Current instruction
+                    |
+      {<-}  -->--]> v >>[+++.] {->}
+      >>++.[<+++>-](-)---[>,+++++<]
+      00 00 00 02 (f3) a2 92 00 00
+      00 00 00 00  ^   00 00 00 00
+      00 00 00 00  |   00 00 00 00
+             Current data
+
+      The instructions are displayed as if on a "tape" being fed in
+      from the top left corner and going out the top right corner.
+      The current instruction is in the "read" position in the middle
+      of the screen, right above the "read" position of the data
+      tape. The next instructions continue on the right until they
+      reach the edge of the screen, then they wrap to the middle of
+      the screen on the line above. They continue until the end of the
+      instructions or they reach the top right corner. The
+      instructions prior to the current flow similarly, but to the
+      left instead. With @n being a portal to the other @n, the flow
+      looks like:
+
+        >  >  >  >@1 @4>  >  >  >
+      @1>  >  >  >@2 @3>  >  >  >@4
+      @2>  >  >  > (%) >  >  >  >@3
+
+      Data flows similarly, but on the bottom half of the screen.
+
+** TODO [#C] Requires new interpreter:
+*** TODO Moving data pointer and instruction pointer forwards and backwards
+*** TODO Live-editing instructions
+*** TODO Time-traveling debugger
