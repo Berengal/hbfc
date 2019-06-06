@@ -4,7 +4,7 @@
 
 module NaiveCompiler where
 
-import Language.Brainfuck.NaiveCompiler (mainModule)
+import Language.Brainfuck.Compiler.NaiveCompiler (mainModule)
 import Language.Brainfuck.Parser
 import BFUtils
 

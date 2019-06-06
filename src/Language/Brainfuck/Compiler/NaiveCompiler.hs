@@ -5,10 +5,12 @@
 {-# language GeneralizedNewtypeDeriving #-}
 {-# language LambdaCase #-}
 
-module Language.Brainfuck.NaiveCompiler where
+module Language.Brainfuck.Compiler.NaiveCompiler where
 
 import Prelude hiding (getChar, putChar, Ordering(..), lookup)
+
 import Language.Brainfuck.Parser
+import Language.Brainfuck.Compiler.CodeGen
 
 import LLVM.AST hiding (function)
 import LLVM.AST.Type
@@ -66,25 +68,10 @@ popJmpStack = do
   modify \s ->s{jmpStack=t}
   return h
 
-size_type = i64
-size_t n = Int 64 0
-
-noBuffering = ConstantOperand (Int 32 2)
-
 mainModule :: [BFInst] -> ModuleBuilder ()
 mainModule program = do
-  fileDef <- typedef "FILE" Nothing
-  getch <- extern "getchar" [] i32
-  putch <- extern "putchar" [i32] i32
-  setvbuf <- extern "setvbuf" [ptr fileDef, ptr i8, i32, size_type] i32
 
-  let stdoutDef = GlobalDefinition $ globalVariableDefaults
-        { name = "stdout"
-        , Glob.type'= ptr fileDef
-        , isConstant = True
-        }
-      stdout = ConstantOperand (GlobalReference (ptr (ptr fileDef)) "stdout")
-  emitDefn stdoutDef
+  PrimDefs{..} <- defaultDefs
   
   let arrayType = (ArrayType 30000 i8)
   dataArray <- global "data" arrayType (AggregateZero arrayType)
@@ -180,10 +167,11 @@ compile (i:rest) = case i of
     call putch [(c, [])]
     compile rest
 
-dataIndex :: BrainfuckCompiler Operand
-dataIndex = do z <- int32 0
-               dp <- getDp
-               da <- getDa
-               gep da [z, dp]
+  where
+    dataIndex :: BrainfuckCompiler Operand
+    dataIndex = do z <- int32 0
+                   dp <- getDp
+                   da <- getDa
+                   gep da [z, dp]
 
 named = flip const --flip LLVM.IRBuilder.Monad.named
