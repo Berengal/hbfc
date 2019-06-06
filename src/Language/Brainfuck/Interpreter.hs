@@ -12,72 +12,66 @@ import System.IO
 
 -}
 
+data BFICode
+  = BFIAdd BFICode
+  | BFISub BFICode
+  | BFIRig BFICode
+  | BFILef BFICode
+  | BFIJmF BFICode BFICode
+  | BFIJmB BFICode BFICode
+  | BFIInp BFICode
+  | BFIOut BFICode
+  | BFIEnd
+
+instance Show BFICode where
+  show (BFIAdd n) = '+':show n
+  show (BFISub n) = '-':show n
+  show (BFIRig n) = '>':show n
+  show (BFILef n) = '<':show n
+  show (BFIJmF n _) = '[':show n
+  show (BFIJmB n _) = ']':show n
+  show (BFIInp n) = ',':show n
+  show (BFIOut n) = '.':show n
+  show BFIEnd = ""
+
+toBFICode :: [BFInst] -> BFICode
+toBFICode = fst . go (error "invalid code (unmatched backjmp)")
+  where
+    go :: [BFICode] -> [BFInst] -> (BFICode, [BFICode])
+    go _ [] = (BFIEnd, error "invalid code (unmatched fwdjmp)")
+    go ~fjmps@(fjmp:fjmpTail) (i:is) = result
+      where
+        (next, bjmps) = go fjmps is
+        result = case i of
+          IncD -> (BFIAdd next, bjmps)
+          DecD -> (BFISub next, bjmps)
+          DRig -> (BFIRig next, bjmps)
+          DLef -> (BFILef next, bjmps)
+          JmpF -> let (next', (bjmp':bjmps')) = go (next':fjmps) is
+                      this = BFIJmF next' bjmp'
+                  in (this, bjmps')
+          JmpB -> let this = BFIJmB next' fjmp
+                      (next', bjmps) = go fjmpTail is
+                  in (this, next':bjmps)
+          Inp  -> (BFIInp next, bjmps)
+          Out  -> (BFIOut next, bjmps)
+
 data Zipper a = Z [a] a [a]
   deriving (Show, Eq)
 
-data BFICode
-  = BFIAdd
-  | BFISub
-  | BFIRig
-  | BFILef
-  | BFIJmF (Zipper BFICode)
-  | BFIJmB (Zipper BFICode)
-  | BFIInp
-  | BFIOut
-
-instance Show BFICode where
-  show BFIAdd = "+"
-  show BFISub = "-"
-  show BFIRig = ">"
-  show BFILef = "<"
-  show (BFIJmF _) = "["
-  show (BFIJmB _) = "]"
-  show BFIInp = ","
-  show BFIOut = "."
-
-toBFICode :: [BFInst] -> [BFICode]
-toBFICode = fst . go [] (error "invalid code (unmatched backjmp)")
-  where
-    go :: [BFICode] -> [Zipper BFICode] -> [BFInst] -> ([BFICode], [Zipper BFICode])
-    go _ _ [] = ([], error "invalid code (unmatched fwdjmp)")
-    go prev ~fjmps@(fjmp:fjmpTail) (i:is) = result
-      where
-        (next, bjmps) = go (head (fst result):prev) fjmps is
-        result = case i of
-          IncD -> (BFIAdd : next, bjmps)
-          DecD -> (BFISub : next, bjmps)
-          DRig -> (BFIRig : next, bjmps)
-          DLef -> (BFILef : next, bjmps)
-          JmpF -> let (next', (bjmp':bjmps')) = go (this:prev) (thisZ:fjmps) is
-                      thisZ = Z prev this next'
-                      this = BFIJmF bjmp'
-                  in (this:next', bjmps')
-          JmpB -> let this = BFIJmB fjmp
-                      thisZ = Z prev this next'
-                      (next', bjmps) = go (this:prev) fjmpTail is
-                  in (this:next', thisZ:bjmps)
-          Inp  -> (BFIInp : next, bjmps)
-          Out  -> (BFIOut : next, bjmps)
-
-
 data BFState = BF { dp :: (Zipper Word8)  -- Data pointer
-                  , ip :: (Zipper BFICode) -- Instruction pointer
+                  , ip :: BFICode -- Instruction pointer
                   }
   deriving Show
 
 setIp ip state = state{ip=ip}
 setDp dp state = state{dp=dp}
 
-freshState :: [BFICode] -> Maybe BFState
-freshState (i:is) = Just $ BF (Z [] 0 []) (Z [] i is)
-freshState _ = Nothing
+freshState :: BFICode -> BFState
+freshState i = BF (Z [] 0 []) i
 
 val (Z _ v _) = v
 setVal (Z l _ r) v = Z l v r
-iRight (Z l v (r:rs)) = Just $ Z (v:l) r rs
-iRight _ = Nothing
-iLeft  (Z (l:ls) v r) = Just $ Z ls l (v:r)
-iLeft _ = Nothing
 dRight (Z l v r) | null r    = Z (v:l) 0 []
                  | otherwise = Z (v:l) (head r) (tail r)
 dLeft (Z l v r) | null l    = Z [] 0 (v:r)
@@ -93,37 +87,34 @@ c2w = fromIntegral . ord
 -}
 
 step :: BFState -> IO (Maybe BFState)
-step state@BF{..} = case val ip of
+step state@BF{..} = case ip of
   
-  BFIAdd -> uptDp (dInc dp)
-  BFISub -> uptDp (dDec dp)
-  BFIRig -> uptDp (dRight dp)
-  BFILef -> uptDp (dLeft dp)
+  BFIAdd n -> goNext n . setDp (dInc dp) $ state
+  BFISub n -> goNext n . setDp (dDec dp) $ state
+  BFIRig n -> goNext n . setDp (dRight dp) $ state
+  BFILef n -> goNext n . setDp (dLeft dp) $ state
   
-  BFIJmF ip' -> if val dp == 0 then
-                  uptIp ip'
-                else
-                  return nstate
-  BFIJmB ip' -> if val dp /= 0 then
-                  uptIp ip'
-                else
-                  return nstate
+  BFIJmF n jmp -> if val dp == 0 then
+                    goNext jmp state
+                  else
+                    goNext n state
+  BFIJmB n jmp -> if val dp /= 0 then
+                    goNext jmp state
+                  else
+                    goNext n state
             
-  BFIInp -> do
-    eof <- isEOF
-    if eof then return nstate else do
-    c <- getChar
-    uptDp (setVal dp (c2w c))
-    
-  BFIOut -> do putChar (w2c (val dp))
-               return nstate
+  BFIInp n -> do eof <- isEOF
+                 if eof then goNext n state else do
+                 c <- getChar
+                 goNext n . setDp (setVal dp (c2w c)) $ state
+  BFIOut n -> do putChar (w2c (val dp))
+                 goNext n state
+  BFIEnd -> return Nothing
              
-  where nstate = flip setIp state <$> iRight ip
-        uptDp dp = return (setDp dp <$> nstate)
-        uptIp ip = return (Just (setIp ip state))
+  where goNext n state = return (Just (setIp n state))
 
-run :: [BFICode] -> IO ()
-run program = go (freshState program)
+run :: BFICode -> IO ()
+run program = go (Just $ freshState program)
   where
     go Nothing = return ()
     go (Just s) = step s >>= go
