@@ -132,79 +132,75 @@ mainModule (BFS program) = do
                  , (noBuffering, [])
                  , (size_t 0, [])
                  ]
-    dp <- named (alloca i32 Nothing 1) "dp"
+    dp <- named (int32 0) "dp"
     compile (CC{..}) program
     ret =<< int32 0
   return ()
 
-data CompilerConstants = CC { dp :: Operand
-                            , da :: Operand
-                            , getch :: Operand
-                            , putch :: Operand
-                            }
+data CompilerConstants =
+  CC { dp :: Operand
+     , da :: Operand
+     , getch :: Operand
+     , putch :: Operand
+     }
 
 compile :: CompilerConstants
         -> Seq BFIR
-        -> IRBuilderT (ModuleBuilder) ()
-compile _ Empty = return ()
+        -> IRBuilderT (ModuleBuilder) Operand
+compile cc Empty = return (dp cc)
 compile cc@CC{..} (i :<| rest) = case i of
   Modify n -> do
-    daIndex <- load dp 1
     z <- int32 0
-    index <- gep da [z, daIndex]
+    index <- gep da [z, dp]
     v <- load index 1
-    v' <- if n > 0 then
-            add v =<< int8 (fromIntegral n)
-          else
-            sub v =<< int8 (fromIntegral (negate n))
+    v' <- if n > 0
+          then add v =<< int8 (fromIntegral n)
+          else sub v =<< int8 (fromIntegral (negate n))
     store index 1 v'
     compile cc rest
     
   Move n -> do
-    daIndex <- load dp 1
-    daIndex' <- if n > 0 then
-                  add daIndex =<< int32 (fromIntegral n)
-                else
-                  sub daIndex =<< int32 (fromIntegral (negate n))
-    store dp 1 daIndex'
-    compile cc rest
+    dp' <- if n > 0
+           then add dp =<< int32 (fromIntegral n)
+           else sub dp =<< int32 (fromIntegral (negate n))
+    compile cc{dp=dp'} rest
     
   Loop (BFS s) -> mdo
     z <- int32 0
     z8 <- int8 0
-
-    daIndex <- load dp 1
-    index <- gep da [z, daIndex]
+    index <- gep da [z, dp]
     v <- load index 1
     neq <- icmp NE v z8
     condBr neq loopStart loopEnd
+    preLoop <- currentBlock
     
-    loopStart <- named block "loopStart"
-    compile cc s
+    loopStart <- block;
+    dp' <- phi [(dp, preLoop), (dp'', postLoop)]
+    dp'' <- compile cc{dp=dp'} s
 
-    daIndex' <- load dp 1
-    index' <- gep da [z, daIndex']
+    index' <- gep da [z, dp'']
     v' <- load index' 1
     neq' <- icmp NE v' z8
+    postLoop <- currentBlock
     condBr neq' loopStart loopEnd
     
-    loopEnd <- named block "loopEnd"
-    compile cc rest
+    loopEnd <- block
+    dp''' <- phi [(dp, preLoop), (dp'', postLoop)]
+    
+    compile cc{dp=dp'''} rest
 
   Input -> do
     c <- call getch []
     c' <- trunc c (i8)
 
-    daIndex <- load dp 1
     z <- int32 0
-    index <- gep da [z, daIndex]
+    index <- gep da [z, dp]
     store index 1 c'
     compile cc rest
 
   Output -> do
-    daIndex <- load dp 1
     z <- int32 0
-    index <- gep da [z, daIndex]
+    index <- gep da [z, dp]
     v <- load index 1
     c <- sext v i32
     call putch [(c, [])]

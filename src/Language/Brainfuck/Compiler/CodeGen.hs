@@ -29,10 +29,12 @@ defaultDefs = do
       size_t n = ConstantOperand (Int 64 n)
       nullPtr t = ConstantOperand (Null (ptr t))
       noBuffering = ConstantOperand (Int 32 2)
+      
   typeFile <- typedef "FILE" Nothing
   getch <- extern "getchar" [] i32
   putch <- extern "putchar" [i32] i32
   setvbuf <- extern "setvbuf" [ptr typeFile, ptr i8, i32, typeSize_t] i32
+  
   let stdoutDef = GlobalDefinition $ globalVariableDefaults
         { name = "stdout"
         , Glob.type'= ptr typeFile
