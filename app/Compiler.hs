@@ -1,23 +1,33 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# language NondecreasingIndentation #-}
 {-# language BlockArguments #-}
 
 module Compiler where
 
-import Language.Brainfuck.Parser
-import Language.Brainfuck.Compiler
 import BFUtils
 
-import qualified Data.ByteString.Char8 as BS
+import Language.Brainfuck.Parser
+import Language.Brainfuck.Compiler
+import Language.Brainfuck.Compiler.Options
 
+import LLVM
+import LLVM.Target
+import LLVM.Context
+import LLVM.Module
+import LLVM.IRBuilder
+
+
+import Options.Applicative
+import qualified Data.ByteString.Char8 as BS
 import System.Environment
 
-main = do
-  args <- getArgs
-  program <- if null args then getContents
-             else readFile (head args)
+main = execParser opts >>= doCompile
+
+doCompile CO{..} = do
+  program <- readFile inputSource
   case parse program of
-    Nothing -> putStrLn "Invalid program"
+    Nothing -> putStrLn "InvalidProgram"
     Just is -> compileToLLVM is >>= BS.putStrLn
 
 compileToLLVM :: [BFInst] -> IO BS.ByteString
