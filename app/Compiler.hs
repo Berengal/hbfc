@@ -54,13 +54,20 @@ llvmTransformPass :: TargetMachine -> CompilerOptions -> Module -> IO ()
 llvmTransformPass target options mod =
   withPassManager spec \manager -> do
   runPassManager manager mod
-  return ()
+  when (optLevel >= Medium) do -- Note: [Optimizing twice]
+    () <$ runPassManager manager mod
   where
+    optLevel = optimizationLevel options
     spec = defaultCuratedPassSetSpec
-      { optLevel = Just case optimizationLevel options of
-          {None -> 0; Simple -> 1; Medium -> 2; Aggressive -> 3;}
+      { optLevel = Just case optLevel of
+          None -> 0; Simple -> 1; Medium -> 2; Aggressive -> 3;
       , targetMachine = Just target
       }
+
+{- [Optimizing twice]
+   The curated optimization pass set is tuned to C/C++ programs and in
+   this case benefits from running twice.
+-}
 
 createOutput
   :: OutputFormat -> Module -> TargetMachine -> IO BS.ByteString

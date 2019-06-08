@@ -7,16 +7,18 @@ module Language.Brainfuck.Compiler.CodeGen where
 
 import Language.Brainfuck.Compiler.BFIR
 import Language.Brainfuck.Compiler.Options
+import Language.Brainfuck.Compiler.CodeGen.Utils
 
 import LLVM.AST hiding (function)
 import LLVM.AST.Type
 import LLVM.AST.Constant
 import LLVM.AST.Global
 import qualified LLVM.AST.Global as Glob
+import LLVM.AST.Visibility
 import LLVM.AST.Instruction hiding (function)
 import LLVM.AST.IntegerPredicate
-import LLVM.IRBuilder.Module
-import LLVM.IRBuilder
+import LLVM.IRBuilder.Module hiding (global)
+import LLVM.IRBuilder hiding (global, int8, int32, int64)
 
 import Data.Sequence
 
@@ -57,21 +59,29 @@ defaultDefs = do
 mainModule :: CodeGenOptions -> BFSeq -> ModuleBuilder ()
 mainModule CGO{..} (BFS program) = do
   PrimDefs {..} <- defaultDefs
-  let cellSize = i8
+  let (cellType, cellVal) = case cellSize of
+        I8  -> (i8, int8)
+        I32 -> (i32, int32)
+        I64 -> (i64, int64)
+        Unbounded -> error "Unbounded cell size not yet supported"
 
-  let arrayType = ArrayType 30000 i8
-  da <- global "data" arrayType (AggregateZero arrayType)
+      arraySize = case dataSize of
+        FiniteSizeArray n -> fromIntegral n
+        InfiniteSizeArray -> error "Infinite size arrays not yet supported (use really big ones instead, we have lots of bits)"
+      arrayType = ArrayType arraySize cellType
+  da <- global Hidden "data" arrayType (AggregateZero arrayType)
 
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> do
     h <- load libc_stdout 1
-    call libc_setvbuf [ (h, [])
-                 , (nullPtr i8, [])
-                 , (libc__IONBF, [])
-                 , (size_t 0, [])
-                 ]
-    dp <- named (int32 0) "dp"
+    call libc_setvbuf
+      [ (h, [])
+      , (nullPtr i8, [])
+      , (libc__IONBF, [])
+      , (size_t 0, [])
+      ]
+    dp <- named (return $ int32 0) "dp"
     compile (CC{getch = libc_getch, putch = libc_putch, ..}) program
-    ret =<< int32 0
+    ret (int32 0)
   return ()
 
 data CompilerConstants =
@@ -79,7 +89,8 @@ data CompilerConstants =
      , da :: Operand
      , getch :: Operand
      , putch :: Operand
-     , cellSize :: Type
+     , cellType :: Type
+     , cellVal  :: Integer -> Operand
      }
 
 compile :: CompilerConstants
@@ -88,23 +99,20 @@ compile :: CompilerConstants
 compile cc Empty = return (dp cc)
 compile cc@CC{..} (i :<| rest) = case i of
   Modify n -> do
-    z <- int32 0
-    index <- gep da [z, dp]
+    index <- gep da [int32 0, dp]
     v <- load index 1
-    v' <- add v =<< int8 (fromIntegral n)
+    v' <- add v (cellVal (fromIntegral n))
     store index 1 v'
     compile cc rest
     
   Move n -> do
-    dp' <- add dp =<< int32 (fromIntegral n)
+    dp' <- add dp (int32 (fromIntegral n))
     compile cc{dp=dp'} rest
     
   Loop (BFS s) -> mdo
-    z <- int32 0
-    z8 <- int8 0
-    index <- gep da [z, dp]
+    index <- gep da [int32 0, dp]
     v <- load index 1
-    neq <- icmp NE v z8
+    neq <- icmp NE v (cellVal 0)
     condBr neq loopStart loopEnd
     preLoop <- currentBlock
     
@@ -112,9 +120,9 @@ compile cc@CC{..} (i :<| rest) = case i of
     dp' <- phi [(dp, preLoop), (dp'', postLoop)]
     dp'' <- compile cc{dp=dp'} s
 
-    index' <- gep da [z, dp'']
+    index' <- gep da [int32 0, dp'']
     v' <- load index' 1
-    neq' <- icmp NE v' z8
+    neq' <- icmp NE v' (cellVal 0)
     postLoop <- currentBlock
     condBr neq' loopStart loopEnd
     
@@ -125,17 +133,26 @@ compile cc@CC{..} (i :<| rest) = case i of
 
   Input -> do
     c <- call getch []
-    c' <- trunc c (i8)
+    
+    c' <- i32ToCell cellType c
 
-    z <- int32 0
-    index <- gep da [z, dp]
+    index <- gep da [int32 0, dp]
     store index 1 c'
     compile cc rest
 
   Output -> do
-    z <- int32 0
-    index <- gep da [z, dp]
+    index <- gep da [int32 0, dp]
     v <- load index 1
-    c <- sext v i32
+    c <- cellToI32 cellType v
     call putch [(c, [])]
     compile cc rest
+
+-- TODO Error handling in compiler is a good idea
+i32ToCell ty c | ty == i8  = trunc c i8
+               | ty == i64 = zext c i64
+               | ty == i32 = return c
+               | otherwise = error "Unsupported cell size"
+cellToI32 ty c | ty == i8  = zext c i32
+               | ty == i64 = trunc c i32
+               | ty == i32 = return c
+               | otherwise = error "Unsupported cell size"
