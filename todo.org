@@ -6,12 +6,43 @@
 *** TODO Different backends (when implemented)
 *** DONE Data array size/start position, infinite array/cell size
 * Compiler backend
-** TODO Add support for different int-sizes
+** DONE Add support for different int-sizes
 ** TODO Add arbitrary-size integer runtime support (gmp)
-** TODO Configurable data array size
+** DONE Configurable data array size
 ** TODO [#C] Configurable target-machine properties
    Not hardcoded to x86-64, no hard-coded size_t
-* TODO Optimizing compiler
+* TODO Tests and benchmarks
+** TODO Hspec tests for compiler.
+*** Test various codegen options
+**** TODO Different size cells
+     - [ ] i8 
+     - [ ] i32
+     - [ ] i64
+**** TODO Different size array
+     - [ ] 30000 (default)
+     - [ ] Really big ones
+     - [ ] Really small ones
+** TODO QuickCheck tests for parser of IR
+*** Make sure concatenating IR programs is idempotent
+    (Check that splitting and concatening anywhere always results in
+    the same
+* TODO Optimizing compiler 
+** TODO Optimizer pipeline structure
+** TODO Improve IR
+*** TODO [#A] Fix IR concatenation, it does not take advantage of invariants
+    An IR sequence should always be minimal, so concatenating two
+    sequences should only have to look at the two middle elements, not
+    recurse on either sequence.
+*** Modify and move can be merged to a single instruction
+*** Set instead of modify when cell value is known
+*** Cell offset when we have a known cell index
+** TODO Static analysis
+*** TODO Dead code elimination
+**** DONE Dead loops (known zero cell at start)
+     - Start of program
+     - Immediately after another loop
+**** TODO Useless code at end of program
+     Anything after the last IO operation is pointless
 * [#C] Interpreter improvements
 ** Design for external manipulation
    Current design works for running a program from start to finish.
