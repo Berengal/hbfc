@@ -6,6 +6,8 @@
 
 module Language.Brainfuck.Compiler.CodeGen where
 
+import Prelude hiding (EQ)
+
 import Language.Brainfuck.Compiler.BFIR
 import Language.Brainfuck.Compiler.Options
 import Language.Brainfuck.Compiler.CodeGen.Utils
