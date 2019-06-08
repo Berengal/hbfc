@@ -1,10 +1,10 @@
 
 * Compiler frontend
-** TODO  Compiler flags
-*** TODO Optimization
-*** TODO Output
-*** TODO Different backends (when implemented
-*** TODO Data array size/start position, infinite array/cell size
+** DONE Compiler flags
+*** DONE Optimization
+*** DONE Output
+*** TODO Different backends (when implemented)
+*** DONE Data array size/start position, infinite array/cell size
 * Compiler backend
 ** TODO Add support for different int-sizes
 ** TODO Add arbitrary-size integer runtime support (gmp)

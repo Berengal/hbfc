@@ -3,21 +3,22 @@ module Language.Brainfuck.Compiler.Options where
 import Data.Word
 import System.IO
 
-data CodeGenOpts = CGO
-  { dataArray :: DataArrayOpt
+data CodeGenOptions = CGO
+  { dataSize :: DataArraySize
+  , dataStart :: Word32
   , cellSize :: CellSize
   } deriving Show
 
-data CompilerOpts = CO
+data CompilerOptions = CO
   { inputSource :: FilePath
   , outputFormat :: OutputFormat
   , outputDestination :: Maybe FilePath
-  , optLevel :: OptLevel
-  , codeGenOpts :: CodeGenOpts
+  , optimizationLevel :: OptimizationLevel
+  , codeGenOptions :: CodeGenOptions
   } deriving Show
 
-data DataArrayOpt = ArbitrarySizeArray
-                  | FiniteSizeArray {size :: Word32, start :: Word32}
+data DataArraySize = InfiniteSizeArray
+                   | FiniteSizeArray Word32
   deriving Show
 
 data CellSize = I8 | I32 | I64 | Unbounded
@@ -26,27 +27,26 @@ data CellSize = I8 | I32 | I64 | Unbounded
 data OutputFormat = IRAssembly | IRBitCode | NativeAssembly | Object
   deriving Show
 
-data OptLevel = None | Simple | Medium | Aggressive
+data OptimizationLevel = None | Simple | Medium | Aggressive
   deriving Show
 
-defaultDataArraySize = 30000
+defaultDataArraySize = FiniteSizeArray 30000
 defaultDataArrayPosition = 0
-defaultDataArrayOpt = FiniteSizeArray
-  { size = defaultDataArraySize
-  , start = defaultDataArrayPosition}
 defaultCellSize = I8
 defaultOutputFormat = Object
-defaultOptLevel = None
+defaultOutputDestination = Nothing
+defaultOptimizationLevel = None
 
-defaultCodeGenOpts = CGO
-  { dataArray = defaultDataArrayOpt
+defaultCodeGenOptions = CGO
+  { dataSize = defaultDataArraySize
+  , dataStart = defaultDataArrayPosition
   , cellSize = defaultCellSize}
 
 defaultCompilerOpts inputSource = CO
   { inputSource = inputSource
   , outputFormat = defaultOutputFormat
-  , outputDestination = Nothing
-  , optLevel = defaultOptLevel
-  , codeGenOpts = defaultCodeGenOpts
+  , outputDestination = defaultOutputDestination
+  , optimizationLevel = defaultOptimizationLevel
+  , codeGenOptions = defaultCodeGenOptions
   }
 
