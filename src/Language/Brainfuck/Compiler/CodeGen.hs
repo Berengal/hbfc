@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -24,128 +25,130 @@ import Data.Sequence
 
 
 data PrimDefs = PrimDefs
-  { libc_FILE :: Type
-  , libc_getch :: Operand
-  , libc_putch :: Operand
+  { libc_FILE    :: Type
+  , libc_getch   :: Operand
+  , libc_putch   :: Operand
   , libc_setvbuf :: Operand
-  , libc__IONBF :: Operand
-  , libc_stdout :: Operand
-  , typeSize_t :: Type
-  , size_t :: Integer -> Operand
-  , nullPtr :: Type -> Operand
+  , libc__IONBF  :: Operand
+  , libc_stdout  :: Operand
+  , libc_EOF     :: Operand
+  , typeSize_t   :: Type
+  , size_t       :: Integer -> Operand
+  , nullPtr      :: Type    -> Operand
   }
 
 defaultDefs :: (MonadModuleBuilder m) => m PrimDefs
 defaultDefs = do
-  let typeSize_t = i64
-      size_t n = ConstantOperand (Int 64 n)
-      nullPtr t = ConstantOperand (Null (ptr t))
-      libc__IONBF = ConstantOperand (Int 32 2)
+  let typeSize_t  = i64
+      size_t n    = int64 n
+      nullPtr t   = ConstantOperand (Null (ptr t))
+      libc__IONBF = int32 2
+      libc_EOF    = int32 (-1)
       
-  libc_FILE <- typedef "FILE" Nothing
-  libc_getch <- extern "getchar" [] i32
-  libc_putch <- extern "putchar" [i32] i32
+  libc_FILE    <- typedef "FILE" Nothing
+  libc_getch   <- extern "getchar" [] i32
+  libc_putch   <- extern "putchar" [i32] i32
   libc_setvbuf <- extern "setvbuf" [ptr libc_FILE, ptr i8, i32, typeSize_t] i32
   
   let stdoutDef = GlobalDefinition $ globalVariableDefaults
-        { name = "stdout"
-        , Glob.type'= ptr libc_FILE
+        { name       = "stdout"
+        , Glob.type' = ptr libc_FILE
         , isConstant = True
         }
       libc_stdout = ConstantOperand (GlobalReference (ptr (ptr libc_FILE)) "stdout")
   emitDefn stdoutDef
+  
   return PrimDefs{..}
     
 mainModule :: CodeGenOptions -> BFSeq -> ModuleBuilder ()
 mainModule CGO{..} (BFS program) = do
-  PrimDefs {..} <- defaultDefs
+  primDefs@PrimDefs {..} <- defaultDefs
   let (cellType, cellVal) = case cellSize of
-        I8  -> (i8, int8)
+        I8  -> (i8,  int8)
         I32 -> (i32, int32)
         I64 -> (i64, int64)
         Unbounded -> error "Unbounded cell size not yet supported"
 
+      arrayType = ArrayType arraySize cellType
       arraySize = case dataSize of
         FiniteSizeArray n -> fromIntegral n
-        InfiniteSizeArray -> error "Infinite size arrays not yet supported (use really big ones instead, we have lots of bits)"
-      arrayType = ArrayType arraySize cellType
-  da <- global Hidden "data" arrayType (AggregateZero arrayType)
+        InfiniteSizeArray -> error "Infinite size arrays not yet supported"
+      
+  dataArray <- global Hidden "data" arrayType (AggregateZero arrayType)
 
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> do
-    h <- load libc_stdout 1
+    handle      <- load libc_stdout 1
+    dataPointer <- alloca typeSize_t Nothing 1 `named` "dataPointer"
+    store dataPointer 1 (size_t 0)
     call libc_setvbuf
-      [ (h, [])
-      , (nullPtr i8, [])
+      [ (handle     , [])
+      , (nullPtr i8 , [])
       , (libc__IONBF, [])
-      , (size_t 0, [])
+      , (size_t 0   , [])
       ]
-    dp <- named (return $ int32 0) "dp"
-    compile (CC{getch = libc_getch, putch = libc_putch, ..}) program
+    mapM_ (compile (CC{..})) program
     ret (int32 0)
   return ()
-
 data CompilerConstants =
-  CC { dp :: Operand
-     , da :: Operand
-     , getch :: Operand
-     , putch :: Operand
-     , cellType :: Type
-     , cellVal  :: Integer -> Operand
+  CC { dataPointer :: Operand
+     , dataArray   :: Operand
+     , cellType    :: Type
+     , cellVal     :: Integer -> Operand
+     , primDefs    :: PrimDefs
      }
 
 compile :: CompilerConstants
-        -> Seq BFIR
-        -> IRBuilderT (ModuleBuilder) Operand
-compile cc Empty = return (dp cc)
-compile cc@CC{..} (i :<| rest) = case i of
+        -> BFIR
+        -> IRBuilderT (ModuleBuilder) ()
+compile cc@CC{primDefs=PrimDefs{..},..} = \case
   Modify n -> do
-    index <- gep da [int32 0, dp]
-    v <- load index 1
-    v' <- add v (cellVal (fromIntegral n))
-    store index 1 v'
-    compile cc rest
+    index <- dataIndex
+    val   <- load index 1
+    val'  <- add val (cellVal (fromIntegral n))
+    store index 1 val'
     
   Move n -> do
-    dp' <- add dp (int32 (fromIntegral n))
-    compile cc{dp=dp'} rest
+    i  <- load dataPointer 1
+    i' <- add i (size_t (fromIntegral n))
+    store dataPointer 1 i'
     
   Loop (BFS s) -> mdo
-    index <- gep da [int32 0, dp]
-    v <- load index 1
-    neq <- icmp NE v (cellVal 0)
+    index <- dataIndex
+    val   <- load index 1
+    neq   <- icmp NE val (cellVal 0)
     condBr neq loopStart loopEnd
-    preLoop <- currentBlock
     
-    loopStart <- block;
-    dp' <- phi [(dp, preLoop), (dp'', postLoop)]
-    dp'' <- compile cc{dp=dp'} s
-
-    index' <- gep da [int32 0, dp'']
-    v' <- load index' 1
-    neq' <- icmp NE v' (cellVal 0)
-    postLoop <- currentBlock
-    condBr neq' loopStart loopEnd
+    loopStart <- block; do
+      mapM_ (compile cc) s
+      index' <- dataIndex
+      val'   <- load index' 1
+      neq'   <- icmp NE val' (cellVal 0)
+      condBr neq' loopStart loopEnd
     
     loopEnd <- block
-    dp''' <- phi [(dp, preLoop), (dp'', postLoop)]
-    
-    compile cc{dp=dp'''} rest
+    return ()
 
   Input -> do
-    c <- call getch []
+    char  <- call libc_getch []
+    eof   <- icmp EQ char libc_EOF
     
-    c' <- i32ToCell cellType c
-
-    index <- gep da [int32 0, dp]
-    store index 1 c'
-    compile cc rest
+    char' <- i32ToCell cellType char
+    index <- dataIndex
+    val   <- load index 1
+    val'  <- select eof val char' -- Old value on EOF
+    
+    store index 1 val'
 
   Output -> do
-    index <- gep da [int32 0, dp]
-    v <- load index 1
-    c <- cellToI32 cellType v
-    call putch [(c, [])]
-    compile cc rest
+    index <- dataIndex
+    val   <- load index 1
+    char  <- cellToI32 cellType val
+    call libc_putch [(char, [])]
+    return ()
+  where
+    dataIndex = do
+      i <- load dataPointer 1
+      gep dataArray [size_t 0, i]
 
 -- TODO Error handling in compiler is a good idea
 i32ToCell ty c | ty == i8  = trunc c i8
