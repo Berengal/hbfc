@@ -1,46 +1,44 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# language NondecreasingIndentation #-}
-{-# language BlockArguments #-}
 
 module Compiler where
 
-import BFUtils
+import           BFUtils
 
-import Language.Brainfuck.Parser
-import qualified Language.Brainfuck.Compiler as C
-import Language.Brainfuck.Compiler.Options
+import qualified Language.Brainfuck.Compiler         as C
+import           Language.Brainfuck.Compiler.Options
+import           Language.Brainfuck.Parser
 
-import LLVM
-import LLVM.Target
-import LLVM.Context
-import LLVM.Module
-import LLVM.IRBuilder
-import LLVM.PassManager
-import qualified LLVM.AST as AST
+import           LLVM
+import qualified LLVM.AST                            as AST
+import           LLVM.Context
+import           LLVM.IRBuilder
+import           LLVM.Module
+import           LLVM.PassManager
+import           LLVM.Target
 
-import Control.Monad
-import Options.Applicative
-import qualified Data.ByteString.Short as BSS
-import qualified Data.ByteString.Char8 as BS
-import System.Environment
-import System.IO
+import           Control.Monad
+import qualified Data.ByteString.Char8               as BS
+import qualified Data.ByteString.Short               as BSS
+import           Options.Applicative
+import           System.Environment
+import           System.IO
 
+main :: IO ()
 main = execParser opts >>= doCompile
 
+doCompile :: CompilerOptions -> IO ()
 doCompile options@CO{..} = do
   source <- readFile inputSource
   case parse source of
     Nothing -> putStrLn "Invalid program"
     Just program -> do
       let astModule = compileToModule options program
-      
-      withContext \ctx -> do
-      withTargetMachineOptions optimizationLevel \target -> do
+
+      withContext $ \ctx -> do
+      withTargetMachineOptions optimizationLevel $ \target -> do
       triple <- getProcessTargetTriple
-      withModuleFromAST ctx astModule{AST.moduleTargetTriple=Just triple} \mod -> do
-        
+      withModuleFromAST ctx astModule{AST.moduleTargetTriple=Just triple} $ \mod -> do
+
       llvmTransformPass target options mod
       outputBytes <- createOutput outputFormat mod target
       writeOutput options outputBytes
@@ -52,14 +50,14 @@ compileToModule options = C.compileToModule inputName codeGenOpts
 
 llvmTransformPass :: TargetMachine -> CompilerOptions -> Module -> IO ()
 llvmTransformPass target options mod =
-  withPassManager spec \manager -> do
+  withPassManager spec $ \manager -> do
   runPassManager manager mod
-  when (optLevel >= Medium) do -- Note: [Optimizing twice]
+  when (optLevel >= Medium) $ do -- Note: [Optimizing twice]
     () <$ runPassManager manager mod
   where
     optLevel = optimizationLevel options
     spec = defaultCuratedPassSetSpec
-      { optLevel = Just case optLevel of
+      { optLevel = Just $ case optLevel of
           None -> 0; Simple -> 1; Medium -> 2; Aggressive -> 3;
       , targetMachine = Just target
       }
@@ -71,16 +69,16 @@ llvmTransformPass target options mod =
 
 createOutput
   :: OutputFormat -> Module -> TargetMachine -> IO BS.ByteString
-createOutput IRAssembly mod _= moduleLLVMAssembly mod
-createOutput IRBitCode mod  _ = moduleBitcode mod
+createOutput IRAssembly mod _          =         moduleLLVMAssembly mod
+createOutput IRBitCode mod  _          = moduleBitcode mod
 createOutput NativeAssembly mod target = moduleTargetAssembly target mod
-createOutput Object mod target = moduleObject target mod
+createOutput Object mod target         = moduleObject target mod
 
 writeOutput :: CompilerOptions -> BS.ByteString -> IO ()
 writeOutput CO{outputDestination} bytes = withOutputHandle (flip BS.hPutStr bytes)
-  where withOutputHandle action = case outputDestination of
-          Nothing   -> action stdout
-          Just path -> withFile path WriteMode action
+  where
+    withOutputHandle action = case outputDestination of
+      Nothing   -> action stdout
+      Just path -> withFile path WriteMode action
 
-        
-          
+

@@ -1,7 +1,7 @@
 module Language.Brainfuck.Parser where
 
-import Data.Maybe
-import Data.Tuple
+import           Data.Maybe
+import           Data.Tuple
 
 data BFInst= IncD | DecD | DRig | DLef | JmpF | JmpB | Inp | Out
   deriving (Eq)
@@ -31,3 +31,4 @@ parse prog =
                             JmpF -> checkValid (n+1) is
                             JmpB -> checkValid (n-1) is
                             _    -> checkValid n is
+

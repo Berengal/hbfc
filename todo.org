@@ -1,9 +1,11 @@
+#+TAGS TODO | IN-PROGRESS | DONE | WONTFIX
 
 * Compiler frontend
 ** DONE Compiler flags
 *** DONE Optimization
 *** DONE Output
 *** TODO Different backends (when implemented)
+    Which backends
 *** DONE Data array size/start position, infinite array/cell size
 * Compiler backend
 ** DONE Add support for different int-sizes

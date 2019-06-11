@@ -38,7 +38,7 @@ stepTraversal p (BFS s) = BFS $ go s
 
 deadStartLoop :: WholeProgramPass
 deadStartLoop (BFS (Loop _ :<| r)) = deadStartLoop (BFS r)
-deadStartLoop x = x
+deadStartLoop x = x 
 
 uselessConsequentLoopPass = stepTraversal p
   where p (Loop x) (Loop _) = Just (singleton $ Loop x)

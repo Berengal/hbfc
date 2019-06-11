@@ -64,6 +64,7 @@ defaultDefs = do
     
 mainModule :: CodeGenOptions -> BFSeq -> ModuleBuilder ()
 mainModule CGO{..} (BFS program) = do
+  
   primDefs@PrimDefs {..} <- defaultDefs
   let (cellType, cellVal) = case cellSize of
         I8  -> (i8,  int8)
@@ -79,9 +80,10 @@ mainModule CGO{..} (BFS program) = do
   dataArray <- global Hidden "data" arrayType (AggregateZero arrayType)
 
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> do
-    handle      <- load libc_stdout 1
     dataPointer <- alloca typeSize_t Nothing 1 `named` "dataPointer"
     store dataPointer 1 (size_t 0)
+    
+    handle      <- load libc_stdout 1
     call libc_setvbuf
       [ (handle     , [])
       , (nullPtr i8 , [])

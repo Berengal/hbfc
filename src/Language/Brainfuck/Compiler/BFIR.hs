@@ -1,11 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
 module Language.Brainfuck.Compiler.BFIR where
 
-import Language.Brainfuck.Parser
+import           Language.Brainfuck.Parser
 
-import Data.Foldable
-import Data.Sequence
-import Text.Printf
+import           Data.Foldable
+import           Data.Sequence
+import           Text.Printf
 
 data BFIR = Modify !Int
           | Move !Int
@@ -14,10 +14,11 @@ data BFIR = Modify !Int
           | Loop BFSeq
           | Input
           | Output
+  deriving Eq
 
 instance Show BFIR where
   show = \case
-    Modify n -> printf "(%+d)" n
+    Modify n    -> printf "(%+d)" n
     Move n -> printf "(<>%d)" n
     LoopStart s -> printf "{%s" (show (BFS s))
     LoopEnd s -> printf "%s}" (show (BFS s))
@@ -25,7 +26,7 @@ instance Show BFIR where
     Input -> ","
     Output -> "."
 
-newtype BFSeq = BFS (Seq BFIR)
+newtype BFSeq = BFS (Seq BFIR) deriving (Eq)
 
 instance Show BFSeq where
   show (BFS s) = concatMap show s
@@ -38,10 +39,10 @@ instance Semigroup BFSeq where
 
 programSize :: BFSeq -> Int
 programSize (BFS p) = foldr' ((+) . irSize) 0 p
-  where irSize (Loop s) = programSize s + 2
+  where irSize (Loop s)      = programSize s + 2
         irSize (LoopStart s) = programSize (BFS s) + 1
-        irSize (LoopEnd s) = programSize (BFS s) + 1
-        irSize _ = 1
+        irSize (LoopEnd s)   = programSize (BFS s) + 1
+        irSize _             = 1
 
 bfInst2BFIR :: BFInst -> BFIR
 bfInst2BFIR = \case
@@ -59,25 +60,26 @@ mergeBFSeq first second = case (first, second) of
   (Empty, b) -> b
   (a, Empty) -> a
   (a :|> Modify m, Modify n :<| b)
-    | (m + n) == 0 -> mergeBFSeq a b
-    | otherwise -> mergeBFSeq (a |> Modify (m+n)) b
+    | (m + n) == 0 -> a >< b
+    | otherwise -> (a |> Modify (m+n)) >< b
   (a :|> Move m, Move n :<| b)
-    | (m + n) == 0 -> mergeBFSeq a b
-    | otherwise -> mergeBFSeq (a |> Move (m+n)) b
-    
-  (a :|> LoopStart ia, LoopEnd ib :<| b)
-    -> mergeBFSeq (a |> Loop (BFS $ mergeBFSeq ia ib)) b
-    
-  (a, LoopStart ia :<| b) -> mergeBFSeq (a |> LoopStart ia) b
-  
-  (a :|> LoopEnd ib, b) -> mergeBFSeq a (LoopEnd ib <| b)
-  
-  (a :|> LoopStart ia, x :<| b)
-    -> mergeBFSeq (a |> LoopStart (mergeBFSeq ia (singleton x))) b
-    
-  (a :|> x, LoopEnd ib :<| b)
-    -> mergeBFSeq a (LoopEnd (mergeBFSeq (singleton x) ib) <| b)
-    
-  (a, x :<| b) -> mergeBFSeq (a |> x) b
+    | (m + n) == 0 -> a >< b
+    | otherwise -> (a |> Move (m+n)) >< b
 
+  (a :|> LoopStart ia, LoopEnd ib :<| b)
+    -> (a |> Loop (BFS $ ia >< ib)) >< b
+
+  (a, LoopStart ia :<| b) -> (a |> LoopStart ia) >< b
+
+  (a :|> LoopEnd ib, b) -> a >< (LoopEnd ib <| b)
+
+  (a :|> LoopStart ia, x :<| b)
+    -> (a |> LoopStart (ia >< (singleton x))) >< b
+
+  (a :|> x, LoopEnd ib :<| b)
+    -> a >< (LoopEnd ((singleton x) >< ib) <| b)
+
+  (a, x :<| b) -> (a |> x) >< b
+
+inst2Seq :: [BFInst] -> BFSeq
 inst2Seq = mconcat . map (BFS . singleton . bfInst2BFIR)

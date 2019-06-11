@@ -2,4 +2,6 @@
 dist/
 brainfuck.cabal
 a.out
+tags
+TAGS
 *~
