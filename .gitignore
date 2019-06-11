@@ -3,3 +3,11 @@ dist/
 brainfuck.cabal
 a.out
 *~
+.dir-locals.el
+.stylish-haskell.yaml
+TAGS
+tags
+*.o
+*.ll
+*.bc
+*.s
