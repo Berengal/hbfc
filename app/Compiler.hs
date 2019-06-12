@@ -10,6 +10,7 @@ import           Language.Brainfuck.Parser
 
 import           LLVM
 import qualified LLVM.AST                            as AST
+import           LLVM.AST.DataLayout
 import           LLVM.Context
 import           LLVM.IRBuilder
 import           LLVM.Module
@@ -19,6 +20,8 @@ import           LLVM.Target
 import           Control.Monad
 import qualified Data.ByteString.Char8               as BS
 import qualified Data.ByteString.Short               as BSS
+import qualified Data.Map                            as Map
+import qualified Data.Set                            as Set
 import           Options.Applicative
 import           System.Environment
 import           System.IO
@@ -44,9 +47,10 @@ doCompile options@CO{..} = do
       writeOutput options outputBytes
 
 compileToModule :: CompilerOptions -> [BFInst] -> AST.Module
-compileToModule options = C.compileToModule inputName codeGenOpts
-  where inputName = BSS.toShort . BS.pack . inputSource $ options
+compileToModule options = C.compileToModule inputName optLevel codeGenOpts
+  where inputName   = BSS.toShort . BS.pack . inputSource $ options
         codeGenOpts = codeGenOptions options
+        optLevel    = optimizationLevel options
 
 llvmTransformPass :: TargetMachine -> CompilerOptions -> Module -> IO ()
 llvmTransformPass target options mod =
@@ -56,10 +60,19 @@ llvmTransformPass target options mod =
     () <$ runPassManager manager mod
   where
     optLevel = optimizationLevel options
-    spec = defaultCuratedPassSetSpec
+    spec     = defaultCuratedPassSetSpec
       { optLevel = Just $ case optLevel of
           None -> 0; Simple -> 1; Medium -> 2; Aggressive -> 3;
       , targetMachine = Just target
+      , dataLayout = Just (defaultDataLayout LittleEndian)
+                     { mangling = Just ELFMangling
+                     , stackAlignment = Just 128
+                     , nativeSizes = Just (Set.fromList [8, 16, 32, 64])
+                     , typeLayouts = Map.fromList
+                                     [ ((IntegerAlign, 64), AlignmentInfo 64 64)
+                                     , ((FloatAlign, 80), AlignmentInfo 128 128)
+                                     ]
+                     }
       }
 
 {- [Optimizing twice]

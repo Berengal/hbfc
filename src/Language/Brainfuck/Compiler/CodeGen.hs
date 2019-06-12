@@ -1,29 +1,29 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE RecursiveDo       #-}
 
 module Language.Brainfuck.Compiler.CodeGen where
 
-import Prelude hiding (EQ)
+import           Prelude                                   hiding (EQ)
 
-import Language.Brainfuck.Compiler.BFIR
-import Language.Brainfuck.Compiler.Options
-import Language.Brainfuck.Compiler.CodeGen.Utils
+import           Language.Brainfuck.Compiler.BFIR
+import           Language.Brainfuck.Compiler.CodeGen.Utils
+import           Language.Brainfuck.Compiler.Options
 
-import LLVM.AST hiding (function)
-import LLVM.AST.Type
-import LLVM.AST.Constant
-import LLVM.AST.Global
-import qualified LLVM.AST.Global as Glob
-import LLVM.AST.Visibility
-import LLVM.AST.Instruction hiding (function)
-import LLVM.AST.IntegerPredicate
-import LLVM.IRBuilder.Module hiding (global)
-import LLVM.IRBuilder hiding (global, int8, int32, int64)
+import           LLVM.AST                                  hiding (function)
+import           LLVM.AST.Constant
+import           LLVM.AST.Global
+import qualified LLVM.AST.Global                           as Glob
+import           LLVM.AST.Instruction                      hiding (function)
+import           LLVM.AST.IntegerPredicate
+import           LLVM.AST.Type
+import           LLVM.AST.Visibility
+import           LLVM.IRBuilder                            hiding (global,
+                                                            int32, int64, int8)
+import           LLVM.IRBuilder.Module                     hiding (global)
 
-import Data.Sequence
+import           Data.Sequence
 
 
 data PrimDefs = PrimDefs
@@ -46,12 +46,12 @@ defaultDefs = do
       nullPtr t   = ConstantOperand (Null (ptr t))
       libc__IONBF = int32 2
       libc_EOF    = int32 (-1)
-      
+
   libc_FILE    <- typedef "FILE" Nothing
   libc_getch   <- extern "getchar" [] i32
   libc_putch   <- extern "putchar" [i32] i32
   libc_setvbuf <- extern "setvbuf" [ptr libc_FILE, ptr i8, i32, typeSize_t] i32
-  
+
   let stdoutDef = GlobalDefinition $ globalVariableDefaults
         { name       = "stdout"
         , Glob.type' = ptr libc_FILE
@@ -59,30 +59,30 @@ defaultDefs = do
         }
       libc_stdout = ConstantOperand (GlobalReference (ptr (ptr libc_FILE)) "stdout")
   emitDefn stdoutDef
-  
+
   return PrimDefs{..}
-    
+
 mainModule :: CodeGenOptions -> BFSeq -> ModuleBuilder ()
 mainModule CGO{..} (BFS program) = do
-  
+
   primDefs@PrimDefs {..} <- defaultDefs
   let (cellType, cellVal) = case cellSize of
-        I8  -> (i8,  int8)
-        I32 -> (i32, int32)
-        I64 -> (i64, int64)
+        I8        -> (i8,  int8)
+        I32       -> (i32, int32)
+        I64       -> (i64, int64)
         Unbounded -> error "Unbounded cell size not yet supported"
 
       arrayType = ArrayType arraySize cellType
       arraySize = case dataSize of
         FiniteSizeArray n -> fromIntegral n
         InfiniteSizeArray -> error "Infinite size arrays not yet supported"
-      
+
   dataArray <- global Hidden "data" arrayType (AggregateZero arrayType)
 
-  function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 \_ -> do
+  function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 $ \_ -> do
     dataPointer <- alloca typeSize_t Nothing 1 `named` "dataPointer"
     store dataPointer 1 (size_t 0)
-    
+
     handle      <- load libc_stdout 1
     call libc_setvbuf
       [ (handle     , [])
@@ -110,37 +110,37 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     val   <- load index 1
     val'  <- add val (cellVal (fromIntegral n))
     store index 1 val'
-    
+
   Move n -> do
     i  <- load dataPointer 1
     i' <- add i (size_t (fromIntegral n))
     store dataPointer 1 i'
-    
+
   Loop (BFS s) -> mdo
     index <- dataIndex
     val   <- load index 1
     neq   <- icmp NE val (cellVal 0)
     condBr neq loopStart loopEnd
-    
+
     loopStart <- block; do
       mapM_ (compile cc) s
       index' <- dataIndex
       val'   <- load index' 1
       neq'   <- icmp NE val' (cellVal 0)
       condBr neq' loopStart loopEnd
-    
+
     loopEnd <- block
     return ()
 
   Input -> do
     char  <- call libc_getch []
     eof   <- icmp EQ char libc_EOF
-    
+
     char' <- i32ToCell cellType char
     index <- dataIndex
     val   <- load index 1
     val'  <- select eof val char' -- Old value on EOF
-    
+
     store index 1 val'
 
   Output -> do
@@ -149,6 +149,9 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     char  <- cellToI32 cellType val
     call libc_putch [(char, [])]
     return ()
+
+  _ -> error "Invalid IR"
+
   where
     dataIndex = do
       i <- load dataPointer 1
