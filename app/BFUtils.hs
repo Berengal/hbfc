@@ -85,7 +85,7 @@ compilerOptions = do
     ( long "format"
       <> short 'f'
       <> value defaultOutputFormat
-      <> help "Output format (ll|bc|s|o)")
+      <> help "Output format (ll|bc|s|o|exe)")
   outputDestination <- (Just <$> strOption
     ( short 'o'
       <> metavar "FILE"
@@ -116,23 +116,27 @@ compilerOptions = do
       ('u':_) -> Right Unbounded
       _    -> Left "Invalid cell size. Valid sizes: (8|32|64|0|unbounded)"
     eof = eitherReader $ \case
-      "0"  -> Right SetZero
-      "EOF" -> Right SetEOF
+      "0"     -> Right SetZero
+      "EOF"   -> Right SetEOF
       ('n':_) -> Right NoChange
-      _ -> Left "Invalid eof behavior. Valid behaviors: (0|EOF|no-change)"
+      _       -> Left "Invalid eof behavior. Valid behaviors: (0|EOF|no-change)"
     outf = eitherReader $ \case
-      "ll" -> Right IRAssembly
-      "bc" -> Right IRBitCode
-      "s"  -> Right NativeAssembly
-      "o"  -> Right Object
-      _    -> Left "Invalid output format. Valid formats: (ll|bc|s|o)"
+      "ll"    -> Right IRAssembly
+      "bc"    -> Right IRBitCode
+      "s"     -> Right NativeAssembly
+      "o"     -> Right Object
+      ('e':_) -> Right Executable
+      _       -> Left "Invalid output format. Valid formats: (ll|bc|s|o|exe)"
+    getOutDest (Just "-") _ _  = Nothing
+    getOutDest (Just dest) _ _ = Just dest
+    getOutDest _ source format = Just (getTargetName source format)
 
-getOutDest (Just "-") _ _ = Nothing
-getOutDest (Just dest) _ _= Just dest
-getOutDest _ source format = Just (takeBaseName source `replaceExtension` formatExt)
+getTargetName :: FilePath -> OutputFormat -> FilePath
+getTargetName source format = takeBaseName source `replaceExtension` formatExt
   where
     formatExt = case format of
       IRAssembly     -> "ll"
       IRBitCode      -> "bc"
       NativeAssembly -> "s"
       Object         -> "o"
+      Executable     -> ""

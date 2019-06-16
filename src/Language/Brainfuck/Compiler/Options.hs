@@ -30,7 +30,7 @@ data EofBehavior = NoChange
                  | SetEOF
   deriving (Show, Eq, Ord)
 
-data OutputFormat = IRAssembly | IRBitCode | NativeAssembly | Object
+data OutputFormat = IRAssembly | IRBitCode | NativeAssembly | Object | Executable
   deriving (Show, Eq)
 
 data OptimizationLevel = None | Simple | Medium | Aggressive
@@ -39,8 +39,8 @@ data OptimizationLevel = None | Simple | Medium | Aggressive
 defaultDataArraySize     = FiniteSizeArray 30000
 defaultDataArrayPosition = 0
 defaultCellSize          = I32
-defaultEofBehavior = NoChange
-defaultOutputFormat      = Object
+defaultEofBehavior       = NoChange
+defaultOutputFormat      = Executable
 defaultOutputDestination = Nothing
 defaultOptimizationLevel = None
 

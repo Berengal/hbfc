@@ -20,19 +20,26 @@ import           Control.Monad
 import qualified Data.ByteString.Char8               as BS
 import qualified Data.ByteString.Short               as BSS
 import qualified Data.Map                            as Map
+import           Data.Maybe
 import qualified Data.Set                            as Set
 import           Options.Applicative
 import           System.Environment
+import           System.Exit
 import           System.IO
+import           System.Process
 
 main :: IO ()
-main = execParser opts >>= doCompile
+main = do
+  opts@CO{..} <- execParser opts
+  when (outputDestination == Nothing && outputFormat == Executable) $ do
+    hPutStrLn stderr "Warning: Piping executable to stdout not supported, will write to - instead."
+  doCompile opts
 
 doCompile :: CompilerOptions -> IO ()
 doCompile options@CO{..} = do
   source <- readFile inputSource
   case parse source of
-    Nothing -> putStrLn "Invalid program"
+    Nothing -> hPutStrLn stderr "Invalid program"
     Just program -> do
       let astModule = compileToModule options program
 
@@ -42,8 +49,17 @@ doCompile options@CO{..} = do
       withModuleFromAST ctx astModule{AST.moduleTargetTriple=Just triple} $ \mod -> do
 
       llvmTransformPass target options mod
-      outputBytes <- createOutput outputFormat mod target
-      writeOutput options outputBytes
+      let outputType | outputFormat == Executable = Object
+                     | otherwise = outputFormat
+          outputPath | outputFormat == Executable = Just (getTargetName inputSource Object)
+                     | otherwise = outputDestination
+      outputBytes <- createOutput outputType mod target
+      writeOutput outputPath outputBytes
+
+      if outputFormat == Executable
+        then do exit <- rawSystem "cc" ["-o", fromMaybe "-" outputDestination, fromJust outputPath]
+                exitWith exit
+        else return ()
 
 compileToModule :: CompilerOptions -> BFProgram -> AST.Module
 compileToModule options = C.compileToModule inputName optLevel codeGenOpts
@@ -74,13 +90,13 @@ llvmTransformPass target options mod =
 
 createOutput
   :: OutputFormat -> Module -> TargetMachine -> IO BS.ByteString
-createOutput IRAssembly mod _          =         moduleLLVMAssembly mod
+createOutput IRAssembly mod _          = moduleLLVMAssembly mod
 createOutput IRBitCode mod  _          = moduleBitcode mod
 createOutput NativeAssembly mod target = moduleTargetAssembly target mod
 createOutput Object mod target         = moduleObject target mod
 
-writeOutput :: CompilerOptions -> BS.ByteString -> IO ()
-writeOutput CO{outputDestination} bytes = withOutputHandle (flip BS.hPutStr bytes)
+writeOutput :: Maybe FilePath -> BS.ByteString -> IO ()
+writeOutput outputDestination bytes = withOutputHandle (flip BS.hPutStr bytes)
   where
     withOutputHandle action = case outputDestination of
       Nothing   -> action stdout
