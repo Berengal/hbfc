@@ -73,7 +73,14 @@ compilerOptions = do
         <> short 'b'
         <> value defaultCellSize
         <> help "Cell size in number of bits (8|32|64|unbounded/0)")
-    pure (CGO datasize pos cellsize)
+    eofBehavior <- option eof
+      ( long "eof-behavior"
+        <> value defaultEofBehavior
+        <> help ("Behavior when reading EOF (0|EOF|no-change)\n"
+                 ++ "Determined the value that will be read in when the input stream"
+                 ++ " has reached EOF. 0 sets it to zero, EOF sets it to -1 and"
+                 ++ " no-change leaves it unchanged."))
+    pure (CGO datasize pos cellsize eofBehavior)
   outputFormat <- option outf
     ( long "format"
       <> short 'f'
@@ -108,6 +115,11 @@ compilerOptions = do
       "0"  -> Right Unbounded
       ('u':_) -> Right Unbounded
       _    -> Left "Invalid cell size. Valid sizes: (8|32|64|0|unbounded)"
+    eof = eitherReader $ \case
+      "0"  -> Right SetZero
+      "EOF" -> Right SetEOF
+      ('n':_) -> Right NoChange
+      _ -> Left "Invalid eof behavior. Valid behaviors: (0|EOF|no-change)"
     outf = eitherReader $ \case
       "ll" -> Right IRAssembly
       "bc" -> Right IRBitCode

@@ -98,6 +98,7 @@ data CompilerConstants =
      , dataArray   :: Operand
      , cellType    :: Type
      , cellVal     :: Integer -> Operand
+     , eofBehavior :: EofBehavior
      , primDefs    :: PrimDefs
      }
 
@@ -134,14 +135,18 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
 
   Input -> do
     char  <- call libc_getch []
-    eof   <- icmp EQ char libc_EOF
-
     char' <- i32ToCell cellType char
     index <- dataIndex
-    val   <- load index 1
-    val'  <- select eof val char' -- Old value on EOF
+    eof   <- icmp EQ char libc_EOF
 
-    store index 1 val'
+    val   <- case eofBehavior of
+      NoChange -> do
+        oldVal <- load index 1
+        select eof oldVal char'
+      SetZero  -> select eof (cellVal 0) char'
+      SetEOF   -> select eof (cellVal (-1)) char'
+
+    store index 1 val
 
   Output -> do
     index <- dataIndex
