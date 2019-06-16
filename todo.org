@@ -30,6 +30,53 @@
 * TODO Optimizing compiler 
 ** TODO Optimizer pipeline structure
 ** TODO Improve IR
+
+   New instruction set:
+   - Move/Modify (mm)
+     Move then modify the cell moved to
+   - Loop
+   - input/output
+   - Move/Set
+     Set the value of the cell directly
+     
+   All instructions can take an offset field. This is relative to the
+   start of the loop. Move/Modify instructions can be reordered inbetween
+   input/output and loops.
+
+   Detecting certain loops:
+   - Loops that only modify always end on zero. Can be replaced with set to zero
+     instruction. Very often =[-]=
+   - Multiplication loops: Loops that only move/modify and end with zero relative
+     movement are multiplications. The amount added to the other cells per loop
+     can instead be multiplied by =-z / n= where =z= is the number in the zeroth
+     cell and =n= is the amount it is changed by (usually -1, which would equal
+     multiplying each cell with =z=)
+
+   Relative movement:
+   - Relative movement is how many cells the data pointer has moved after a given
+     sequence of instructions. Relative movement is separate from offset, and
+     there are different rules for combining them. Determining the relative
+     movement of parts of the program will help in optimization.
+   - The relative movement of instructions is determined from the base sequence of
+     instructions before reordering. Each instruction is assigned a relative
+     movement thus:
+     - Move instructions have relative movement equal to their offset minus the
+       offset of the previous instruction, or just their offset if the previous
+       instruction defines the base index.
+     - Input/output has zero relative movement
+     - Loops have undefined relative movement as a base assumption. This means that
+       the base index must be defined at the start and end of a loop.
+   - The relative movement of loops can be detected in certain circumstances:
+     - The loop sequence instructions must all have defined relative movements.
+     - The relative movement of the loop sequence must sum to zero, *OR* the
+       number of loop iterations must be known.
+   - If the relative movement of a loop becomes known the 
+
+   Using relative movement:
+   - Modify instructions can directly modify [base + rel] instead of updating the
+     base index for every modification.
+   - Similarly input and output can read/write directly to [base + rel].
+
 *** DONE [#A] Fix IR concatenation, it does not take advantage of invariants
     An IR sequence should always be minimal, so concatenating two
     sequences should only have to look at the two middle elements, not
@@ -56,14 +103,14 @@
     - Split screen top/bottom, instructions displayed on top, data on
       bottom. Ex:
 
-            Current instruction
-                    |
+      Current instruction
+      |
       {<-}  -->--]> v >>[+++.] {->}
       >>++.[<+++>-](-)---[>,+++++<]
       00 00 00 02 (f3) a2 92 00 00
       00 00 00 00  ^   00 00 00 00
       00 00 00 00  |   00 00 00 00
-             Current data
+      Current data
 
       The instructions are displayed as if on a "tape" being fed in
       from the top left corner and going out the top right corner.
@@ -77,7 +124,7 @@
       left instead. With @n being a portal to the other @n, the flow
       looks like:
 
-        >  >  >  >@1 @4>  >  >  >
+      >  >  >  >@1 @4>  >  >  >
       @1>  >  >  >@2 @3>  >  >  >@4
       @2>  >  >  > (%) >  >  >  >@3
 
@@ -87,3 +134,4 @@
 *** TODO Moving data pointer and instruction pointer forwards and backwards
 *** TODO Live-editing instructions
 *** TODO Time-traveling debugger
+

@@ -1,12 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 module Language.Brainfuck.Interpreter where
 
-import Language.Brainfuck.Parser
+import           Language.Brainfuck.Parser
 
-import Control.Monad
-import Data.Word
-import Data.Char
-import System.IO
+import           Control.Monad
+import           Data.Char
+import           Data.Word
+import           System.IO
 
 {- [Machine state]
 
@@ -24,37 +24,39 @@ data BFICode
   | BFIEnd
 
 instance Show BFICode where
-  show (BFIAdd n) = '+':show n
-  show (BFISub n) = '-':show n
-  show (BFIRig n) = '>':show n
-  show (BFILef n) = '<':show n
+  show (BFIAdd n)   = '+':show n
+  show (BFISub n)   = '-':show n
+  show (BFIRig n)   = '>':show n
+  show (BFILef n)   = '<':show n
   show (BFIJmF n _) = '[':show n
   show (BFIJmB n _) = ']':show n
-  show (BFIInp n) = ',':show n
-  show (BFIOut n) = '.':show n
-  show BFIEnd = ""
+  show (BFIInp n)   = ',':show n
+  show (BFIOut n)   = '.':show n
+  show BFIEnd       = ""
 
-toBFICode :: [BFInst] -> BFICode
-toBFICode = fst . go (error "invalid code (unmatched backjmp)")
+-- The errors here should be unreachable because BFProgram should always be a
+-- valid program string
+toBFICode :: BFProgram -> BFICode
+toBFICode = fst . go (error "invalid code (unmatched backjmp)") . getBFProgram
   where
-    go :: [BFICode] -> [BFInst] -> (BFICode, [BFICode])
+    go :: [BFICode] -> [Char] -> (BFICode, [BFICode])
     go _ [] = (BFIEnd, error "invalid code (unmatched fwdjmp)")
     go ~fjmps@(fjmp:fjmpTail) (i:is) = result
       where
         (next, bjmps) = go fjmps is
         result = case i of
-          IncD -> (BFIAdd next, bjmps)
-          DecD -> (BFISub next, bjmps)
-          DRig -> (BFIRig next, bjmps)
-          DLef -> (BFILef next, bjmps)
-          JmpF -> let (next', (bjmp':bjmps')) = go (next':fjmps) is
-                      this = BFIJmF next' bjmp'
+          '+' -> (BFIAdd next, bjmps)
+          '-' -> (BFISub next, bjmps)
+          '>' -> (BFIRig next, bjmps)
+          '<' -> (BFILef next, bjmps)
+          '[' -> let (next', (bjmp':bjmps')) = go (next':fjmps) is
+                     this = BFIJmF next' bjmp'
                   in (this, bjmps')
-          JmpB -> let this = BFIJmB next' fjmp
-                      (next', bjmps) = go fjmpTail is
-                  in (this, next':bjmps)
-          Inp  -> (BFIInp next, bjmps)
-          Out  -> (BFIOut next, bjmps)
+          ']' -> let this = BFIJmB next fjmp
+                     (next, bjmps') = go fjmpTail is
+                 in (this, next:bjmps')
+          ',' -> (BFIInp next, bjmps)
+          '.' -> (BFIOut next, bjmps)
 
 data Zipper a = Z [a] a [a]
   deriving (Show, Eq)
@@ -88,12 +90,12 @@ c2w = fromIntegral . ord
 
 step :: BFState -> IO (Maybe BFState)
 step state@BF{..} = case ip of
-  
+
   BFIAdd n -> goNext n . setDp (dInc dp) $ state
   BFISub n -> goNext n . setDp (dDec dp) $ state
   BFIRig n -> goNext n . setDp (dRight dp) $ state
   BFILef n -> goNext n . setDp (dLeft dp) $ state
-  
+
   BFIJmF n jmp -> if val dp == 0 then
                     goNext jmp state
                   else
@@ -102,7 +104,7 @@ step state@BF{..} = case ip of
                     goNext jmp state
                   else
                     goNext n state
-            
+
   BFIInp n -> do eof <- isEOF
                  if eof then goNext n state else do
                  c <- getChar
@@ -110,11 +112,11 @@ step state@BF{..} = case ip of
   BFIOut n -> do putChar (w2c (val dp))
                  goNext n state
   BFIEnd -> return Nothing
-             
+
   where goNext n state = return (Just (setIp n state))
 
 run :: BFICode -> IO ()
 run program = go (Just $ freshState program)
   where
-    go Nothing = return ()
+    go Nothing  = return ()
     go (Just s) = step s >>= go

@@ -26,9 +26,9 @@ import           Prelude                             hiding (Ordering (..),
 import           Text.Printf
 
 type WholeProgramPass = BFSeq -> BFSeq
-type PartialPass = Seq BFIR -> Seq BFIR
-type PairStep = BFIR -> BFIR -> Maybe (Seq BFIR)
-type SingleStep = BFIR -> Maybe (Seq BFIR)
+type PartialPass = Seq SimpleIR -> Seq SimpleIR
+type PairStep = SimpleIR -> SimpleIR -> Maybe (Seq SimpleIR)
+type SingleStep = SimpleIR -> Maybe (Seq SimpleIR)
 
 pairStepTraversal :: PairStep -> WholeProgramPass
 pairStepTraversal p (BFS s) = BFS $ go s
@@ -71,7 +71,7 @@ compileToModule
   :: BS.ShortByteString
   -> OptimizationLevel
   -> CodeGenOptions
-  -> [BFInst]
+  -> BFProgram
   -> Module
 compileToModule sourceName optimizationLevel opts program =
   builtModule{moduleSourceFileName = sourceName}

@@ -10,7 +10,6 @@ import           Language.Brainfuck.Parser
 
 import           LLVM
 import qualified LLVM.AST                            as AST
-import           LLVM.AST.DataLayout
 import           LLVM.Context
 import           LLVM.IRBuilder
 import           LLVM.Module
@@ -46,7 +45,7 @@ doCompile options@CO{..} = do
       outputBytes <- createOutput outputFormat mod target
       writeOutput options outputBytes
 
-compileToModule :: CompilerOptions -> [BFInst] -> AST.Module
+compileToModule :: CompilerOptions -> BFProgram -> AST.Module
 compileToModule options = C.compileToModule inputName optLevel codeGenOpts
   where inputName   = BSS.toShort . BS.pack . inputSource $ options
         codeGenOpts = codeGenOptions options
@@ -55,24 +54,17 @@ compileToModule options = C.compileToModule inputName optLevel codeGenOpts
 llvmTransformPass :: TargetMachine -> CompilerOptions -> Module -> IO ()
 llvmTransformPass target options mod =
   withPassManager spec $ \manager -> do
+
   runPassManager manager mod
   when (optLevel >= Medium) $ do -- Note: [Optimizing twice]
     () <$ runPassManager manager mod
+
   where
     optLevel = optimizationLevel options
     spec     = defaultCuratedPassSetSpec
       { optLevel = Just $ case optLevel of
           None -> 0; Simple -> 1; Medium -> 2; Aggressive -> 3;
       , targetMachine = Just target
-      , dataLayout = Just (defaultDataLayout LittleEndian)
-                     { mangling = Just ELFMangling
-                     , stackAlignment = Just 128
-                     , nativeSizes = Just (Set.fromList [8, 16, 32, 64])
-                     , typeLayouts = Map.fromList
-                                     [ ((IntegerAlign, 64), AlignmentInfo 64 64)
-                                     , ((FloatAlign, 80), AlignmentInfo 128 128)
-                                     ]
-                     }
       }
 
 {- [Optimizing twice]

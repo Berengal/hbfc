@@ -1,26 +1,26 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ApplicativeDo   #-}
+{-# LANGUAGE BlockArguments  #-}
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE ViewPatterns    #-}
 module BFUtils where
 
-import Language.Brainfuck.Compiler.Options
+import           Language.Brainfuck.Compiler.Options
 
-import LLVM
-import LLVM.Target
-import LLVM.Target.Options
-import LLVM.Context
-import LLVM.Module
-import LLVM.IRBuilder
-import qualified LLVM.Relocation as Reloc
-import qualified LLVM.CodeModel as CodeModel
-import qualified LLVM.CodeGenOpt as CodeGenOpt
+import           LLVM
+import qualified LLVM.CodeGenOpt                     as CodeGenOpt
+import qualified LLVM.CodeModel                      as CodeModel
+import           LLVM.Context
+import           LLVM.IRBuilder
+import           LLVM.Module
+import qualified LLVM.Relocation                     as Reloc
+import           LLVM.Target
+import           LLVM.Target.Options
 
-import Options.Applicative
-import System.FilePath
+import           Options.Applicative
+import           System.FilePath
 
-import Data.ByteString.Short
+import           Data.ByteString.Short
 
 withTargetMachineOptions optimizationLevel action = do
   initializeNativeTarget
@@ -28,7 +28,7 @@ withTargetMachineOptions optimizationLevel action = do
   cpu <- getHostCPUName
   features <- getHostCPUFeatures
   (target, _) <- lookupTarget Nothing triple
-  withTargetOptions \options -> do
+  withTargetOptions $ \options -> do
   withTargetMachine
     target
     triple
@@ -41,9 +41,9 @@ withTargetMachineOptions optimizationLevel action = do
     action
   where
     optLevel = case optimizationLevel of
-      None -> CodeGenOpt.None
-      Simple -> CodeGenOpt.Less
-      Medium -> CodeGenOpt.Default
+      None       -> CodeGenOpt.None
+      Simple     -> CodeGenOpt.Less
+      Medium     -> CodeGenOpt.Default
       Aggressive -> CodeGenOpt.Aggressive
 
 opts = info (compilerOptions <**> helper)
@@ -90,36 +90,37 @@ compilerOptions = do
   pure CO{outputDestination = getOutDest outputDestination inputSource outputFormat
          ,..}
   where
-    arrs = eitherReader \case
+    arrs = eitherReader $ \case
       ('i':_) -> Right InfiniteSizeArray
+      "0"     -> Right InfiniteSizeArray
       (readsPrec 0 -> [(s,[])]) -> Right (FiniteSizeArray s)
       _       -> Left "Invalid array size. Valid sizes: (1-(2^32-1)|infinite/0)"
-    optl = eitherReader \case
+    optl = eitherReader $ \case
       "0" -> Right None
       "1" -> Right Simple
       "2" -> Right Medium
       "3" -> Right Aggressive
       _   -> Left "Invalid optimization level. Valid levels: (0-3)"
-    cell = eitherReader \case
+    cell = eitherReader $ \case
       "8"  -> Right I8
       "32" -> Right I32
       "64" -> Right I64
       "0"  -> Right Unbounded
       ('u':_) -> Right Unbounded
       _    -> Left "Invalid cell size. Valid sizes: (8|32|64|0|unbounded)"
-    outf = eitherReader \case
+    outf = eitherReader $ \case
       "ll" -> Right IRAssembly
       "bc" -> Right IRBitCode
       "s"  -> Right NativeAssembly
       "o"  -> Right Object
       _    -> Left "Invalid output format. Valid formats: (ll|bc|s|o)"
-      
+
 getOutDest (Just "-") _ _ = Nothing
 getOutDest (Just dest) _ _= Just dest
 getOutDest _ source format = Just (takeBaseName source `replaceExtension` formatExt)
   where
     formatExt = case format of
-      IRAssembly -> "ll"
-      IRBitCode -> "bc"
+      IRAssembly     -> "ll"
+      IRBitCode      -> "bc"
       NativeAssembly -> "s"
-      Object -> "o"
+      Object         -> "o"

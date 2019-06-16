@@ -102,7 +102,7 @@ data CompilerConstants =
      }
 
 compile :: CompilerConstants
-        -> BFIR
+        -> SimpleIR
         -> IRBuilderT (ModuleBuilder) ()
 compile cc@CC{primDefs=PrimDefs{..},..} = \case
   Modify n -> do
