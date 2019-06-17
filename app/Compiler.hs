@@ -30,10 +30,10 @@ import           System.Process
 
 main :: IO ()
 main = do
-  opts@CO{..} <- execParser opts
+  options@CO{..} <- execParser opts
   when (outputDestination == Nothing && outputFormat == Executable) $ do
     hPutStrLn stderr "Warning: Piping executable to stdout not supported, will write to - instead."
-  doCompile opts
+  doCompile options
 
 doCompile :: CompilerOptions -> IO ()
 doCompile options@CO{..} = do
