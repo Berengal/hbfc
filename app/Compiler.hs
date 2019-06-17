@@ -76,7 +76,7 @@ llvmTransformPass target options mod =
     () <$ runPassManager manager mod
 
   where
-    optLevel = optimizationLevel options
+    optLevel = llvmOptimization options
     spec     = defaultCuratedPassSetSpec
       { optLevel = Just $ case optLevel of
           None -> 0; Simple -> 1; Medium -> 2; Aggressive -> 3;

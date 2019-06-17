@@ -15,6 +15,7 @@ data CompilerOptions = CO
   , outputFormat      :: OutputFormat
   , outputDestination :: Maybe FilePath
   , optimizationLevel :: OptimizationLevel
+  , llvmOptimization  :: OptimizationLevel
   , codeGenOptions    :: CodeGenOptions
   } deriving (Show, Eq)
 
@@ -56,6 +57,7 @@ defaultCompilerOpts inputSource = CO
   , outputFormat      = defaultOutputFormat
   , outputDestination = defaultOutputDestination
   , optimizationLevel = defaultOptimizationLevel
+  , llvmOptimization  = defaultOptimizationLevel
   , codeGenOptions    = defaultCodeGenOptions
   }
 

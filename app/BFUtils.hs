@@ -17,6 +17,7 @@ import qualified LLVM.Relocation                     as Reloc
 import           LLVM.Target
 import           LLVM.Target.Options
 
+import           Data.Maybe
 import           Options.Applicative
 import           System.FilePath
 
@@ -57,6 +58,10 @@ compilerOptions = do
     (short 'O'
     <> help "Optimization level (0-3)"
     <> value defaultOptimizationLevel)
+  llvmOptimization <- (Just <$> option optl
+    (long "llvm-opt"
+    <> help "LLVM optimization level (0-3). Same as regular optimization by default"))
+    <|> pure Nothing
   codeGenOptions <- do
     datasize <- option arrs
       ( long "datasize"
@@ -94,7 +99,8 @@ compilerOptions = do
   inputSource <- strArgument
     (metavar "SOURCE"
     <> help "input file")
-  pure CO{outputDestination = getOutDest outputDestination inputSource outputFormat
+  pure CO{ outputDestination = getOutDest outputDestination inputSource outputFormat
+         , llvmOptimization = fromMaybe optimizationLevel llvmOptimization
          ,..}
   where
     arrs = eitherReader $ \case

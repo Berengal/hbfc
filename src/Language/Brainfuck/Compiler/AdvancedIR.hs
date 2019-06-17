@@ -9,6 +9,7 @@ import           Data.Function
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
+import Data.Sequence
 
 
 -- | Movement commands are turned into offsets instead. The offsets are based
@@ -43,9 +44,9 @@ data AdvancedIR
               }
   | Loop      { offset           :: Int
               , relativeMovement :: RelativeMovement
-              , body             :: [AdvancedIR]
+              , body             :: Seq AdvancedIR
               }
-  deriving Show
+  deriving (Show, Eq)
 
 data RelativeMovement = Known Int
                       | Unknown
@@ -64,46 +65,45 @@ instance Num RelativeMovement where
   signum (Known n) = Known (signum n)
   signum Unknown   = Unknown
 
-fromBFProgram :: BFProgram -> [AdvancedIR]
+fromBFProgram :: BFProgram -> Seq AdvancedIR
 fromBFProgram (BFProgram prog) = fst (evalState (go prog) 0)
   where
-    go :: String -> State Int ([AdvancedIR], String)
+    go :: String -> State Int (Seq AdvancedIR, String)
     go ('+':r) = do
       off <- get
       (rest, r') <- go r
-      return (Modify 1 off (Known 0) : rest, r')
+      return (Modify 1 off (Known 0) :<| rest, r')
     go ('-':r) = do
       off <- get
       (rest, r') <- go r
-      return (Modify (-1) off (Known 0) : rest, r')
+      return (Modify (-1) off (Known 0) :<| rest, r')
     go ('>':r) = do
       off <- get
       put (off+1)
       (rest, r') <- go r
-      return (Modify 0 (off+1) (Known 1) : rest, r')
+      return (Modify 0 (off+1) (Known 1) :<| rest, r')
     go ('<':r) = do
       off <- get
       put (off-1)
       (rest, r') <- go r
-      return (Modify 0 (off-1) (Known (-1)) : rest , r')
+      return (Modify 0 (off-1) (Known (-1)) :<| rest , r')
     go (',':r) = do
       off <- get
       (rest, r') <- go r
-      return (Input off (Known 0) : rest, r')
+      return (Input off (Known 0) :<| rest, r')
     go ('.':r) = do
       off <- get
       (rest, r') <- go r
-      return (Output off (Known 0) : rest, r')
+      return (Output off (Known 0) :<| rest, r')
     go ('[':r) = do
       off <- get
       put 0
       (body, r') <- go r
+      index <- get
       put 0
       (rest, r'') <- go r'
-      return (Loop off Unknown body : rest, r'')
+      return (Loop off Unknown (body |> BaseIndex index 0) :<| rest, r'')
     go (']':r) =
-      return ([], r)
-    go [] = return ([], [])
+      return (Empty, r)
+    go [] = return (Empty, [])
     go _ = error "Invalid BFProgram (AdvancedIR.fromBFProgram)"
-
-

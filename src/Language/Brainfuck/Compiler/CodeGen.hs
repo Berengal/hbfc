@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE RecursiveDo       #-}
@@ -7,7 +8,7 @@ module Language.Brainfuck.Compiler.CodeGen where
 
 import           Prelude                                   hiding (EQ)
 
-import           Language.Brainfuck.Compiler.BFIR
+import           Language.Brainfuck.Compiler.AdvancedIR
 import           Language.Brainfuck.Compiler.CodeGen.Utils
 import           Language.Brainfuck.Compiler.Options
 
@@ -62,8 +63,8 @@ defaultDefs = do
 
   return PrimDefs{..}
 
-mainModule :: CodeGenOptions -> BFSeq -> ModuleBuilder ()
-mainModule CGO{..} (BFS program) = do
+mainModule :: CodeGenOptions -> Seq AdvancedIR -> ModuleBuilder ()
+mainModule CGO{..} program = do
 
   primDefs@PrimDefs {..} <- defaultDefs
   let (cellType, cellVal) = case cellSize of
@@ -103,29 +104,46 @@ data CompilerConstants =
      }
 
 compile :: CompilerConstants
-        -> SimpleIR
+        -> AdvancedIR
         -> IRBuilderT (ModuleBuilder) ()
 compile cc@CC{primDefs=PrimDefs{..},..} = \case
-  Modify n -> do
-    index <- dataIndex
+  Modify{modifyAmount, offset} -> name "modify" $ do
+    index <- dataIndex offset
     val   <- load index 1
-    val'  <- add val (cellVal (fromIntegral n))
+    val'  <- add val (cellVal (fromIntegral modifyAmount))
     store index 1 val'
 
-  Move n -> do
-    i  <- load dataPointer 1
-    i' <- add i (size_t (fromIntegral n))
-    store dataPointer 1 i'
+  Set{setAmount, offset} -> name "set" $ do
+    index <- dataIndex offset
+    store index 1 (cellVal (fromIntegral setAmount))
 
-  Loop (BFS s) -> mdo
-    index <- dataIndex
+  Multiply{offset, offsetFrom, scale, step} -> name "multiply" $ do
+    fromIndex <- dataIndex offsetFrom
+    fromVal   <- load fromIndex 1
+    times     <- sdiv fromVal (cellVal (fromIntegral step))
+    mult      <- mul times (cellVal (fromIntegral scale))
+
+    toIndex <- dataIndex offset
+    toVal   <- load toIndex 1
+    result  <- add toVal mult
+    store toIndex 1 result
+
+  BaseIndex{offset} -> name "baseIndex" $ do
+    baseIndex <- load dataPointer 1
+    newIndex  <- add baseIndex (size_t (fromIntegral offset))
+    store dataPointer 1 newIndex
+
+  Loop{offset, body} -> name "loop" $ mdo
+    index <- dataIndex offset
     val   <- load index 1
     neq   <- icmp NE val (cellVal 0)
     condBr neq loopStart loopEnd
 
+    compile cc (BaseIndex offset 0)
+
     loopStart <- block; do
-      mapM_ (compile cc) s
-      index' <- dataIndex
+      mapM_ (compile cc) body
+      index' <- dataIndex 0
       val'   <- load index' 1
       neq'   <- icmp NE val' (cellVal 0)
       condBr neq' loopStart loopEnd
@@ -133,10 +151,10 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     loopEnd <- block
     return ()
 
-  Input -> do
+  Input{offset} -> name "input" $ do
     char  <- call libc_getch []
     char' <- i32ToCell cellType char
-    index <- dataIndex
+    index <- dataIndex offset
     eof   <- icmp EQ char libc_EOF
 
     val   <- case eofBehavior of
@@ -148,19 +166,20 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
 
     store index 1 val
 
-  Output -> do
-    index <- dataIndex
+  Output{offset} -> name "output" $ do
+    index <- dataIndex offset
     val   <- load index 1
     char  <- cellToI32 cellType val
     call libc_putch [(char, [])]
     return ()
 
-  _ -> error "Invalid IR"
-
   where
-    dataIndex = do
-      i <- load dataPointer 1
+    dataIndex offset = do
+      base <- load dataPointer 1
+      i <- add base (size_t (fromIntegral offset))
       gep dataArray [size_t 0, i]
+    name = flip named
+
 
 -- TODO Error handling in compiler is a good idea
 i32ToCell ty c | ty == i8  = trunc c i8
