@@ -26,8 +26,6 @@ dependencies:
 - containers >= 0.6.0.1 && < 0.7
 - mtl >= 2.2.2 && < 2.3
 - bytestring >= 0.10.8.2 && < 0.11
-- QuickCheck >= 2.12.6.1 && < 2.14
-- hspec >= 2.6.1 && <2.8
 - process >= 1.6.5.0 && < 1.7
 
 default-extensions:
@@ -67,7 +65,7 @@ executables:
       - brainfuck
       - optparse-applicative >= 0.14.3.0 && <0.15
       - filepath >= 1.4.2.1 && <1.5
-    
+
 tests:
   brainfuck-test:
     main:                Spec.hs
@@ -79,3 +77,5 @@ tests:
     - -with-rtsopts=-qg1
     dependencies:
       - brainfuck
+      - QuickCheck >= 2.12.6.1 && < 2.14
+      - hspec >= 2.6.1 && <2.8

@@ -107,17 +107,17 @@ compile :: CompilerConstants
         -> AdvancedIR
         -> IRBuilderT (ModuleBuilder) ()
 compile cc@CC{primDefs=PrimDefs{..},..} = \case
-  Modify{modifyAmount, offset} -> name "modify" $ do
+  Modify{modifyAmount, offset} -> do
     index <- dataIndex offset
     val   <- load index 1
     val'  <- add val (cellVal (fromIntegral modifyAmount))
     store index 1 val'
 
-  Set{setAmount, offset} -> name "set" $ do
+  Set{setAmount, offset} -> do
     index <- dataIndex offset
     store index 1 (cellVal (fromIntegral setAmount))
 
-  Multiply{offset, offsetFrom, scale, step} -> name "multiply" $ do
+  Multiply{offset, offsetFrom, scale, step} -> do
     fromIndex <- dataIndex offsetFrom
     fromVal   <- load fromIndex 1
     times     <- sdiv fromVal (cellVal (fromIntegral step))
@@ -128,12 +128,12 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     result  <- add toVal mult
     store toIndex 1 result
 
-  BaseIndex{offset} -> name "baseIndex" $ do
+  BaseIndex{offset} -> do
     baseIndex <- load dataPointer 1
     newIndex  <- add baseIndex (size_t (fromIntegral offset))
     store dataPointer 1 newIndex
 
-  Loop{offset, body} -> name "loop" $ mdo
+  Loop{offset, body} -> mdo
     index <- dataIndex offset
     val   <- load index 1
     neq   <- icmp NE val (cellVal 0)
@@ -151,7 +151,7 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     loopEnd <- block
     return ()
 
-  Input{offset} -> name "input" $ do
+  Input{offset} -> do
     char  <- call libc_getch []
     char' <- i32ToCell cellType char
     index <- dataIndex offset
@@ -166,7 +166,7 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
 
     store index 1 val
 
-  Output{offset} -> name "output" $ do
+  Output{offset} -> do
     index <- dataIndex offset
     val   <- load index 1
     char  <- cellToI32 cellType val
@@ -178,7 +178,6 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
       base <- load dataPointer 1
       i <- add base (size_t (fromIntegral offset))
       gep dataArray [size_t 0, i]
-    name = flip named
 
 
 -- TODO Error handling in compiler is a good idea

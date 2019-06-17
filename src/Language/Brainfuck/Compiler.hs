@@ -1,31 +1,23 @@
 {-# LANGUAGE BlockArguments    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 module Language.Brainfuck.Compiler where
 
 import           Language.Brainfuck.Compiler.AdvancedIR
 import           Language.Brainfuck.Compiler.CodeGen
 import           Language.Brainfuck.Compiler.Optimization
+import           Language.Brainfuck.Compiler.Optimization.Passes
 import           Language.Brainfuck.Compiler.Options
 import           Language.Brainfuck.Parser
 
 import           LLVM.AST
-import           LLVM.AST.Constant
-import           LLVM.AST.IntegerPredicate
-import           LLVM.AST.Name
-import           LLVM.AST.Operand
-import           LLVM.AST.Type
 import           LLVM.IRBuilder
-import           LLVM.IRBuilder.Module
 
 import           Data.ByteString.Short                    as BS
-import           Data.Foldable
-import           Data.Sequence
 import           Prelude                                  hiding (Ordering (..),
                                                            length)
-import           Text.Printf
 
+optimizationPasses :: OptimizationLevel -> [OptimizationPass]
 optimizationPasses None       = []
 optimizationPasses Simple     = simpleOptimize
 optimizationPasses Medium     = mediumOptimize

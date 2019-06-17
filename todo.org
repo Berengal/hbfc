@@ -17,7 +17,7 @@
 ** IN-PROGRESS Hspec tests for compiler.
 *** Test various codegen options
 **** TODO Different size cells
-     - [ ] i8 
+     - [ ] i8
      - [ ] i32
      - [ ] i64
 **** TODO Different size array
@@ -27,9 +27,11 @@
 ** IN-PROGRESS QuickCheck tests for parser of IR
 *** DONE Making sure valid programs stay valid going from plain instructions to BFIR
 *** DONE Splitting and rejoining BFIR in random position is idempotent
-* TODO Optimizing compiler 
-** TODO Optimizer pipeline structure
-** TODO Improve IR
+* IN-PROGRESS Optimizing compiler
+** IN-PROGRESS Optimizer pipeline structure
+*** TODO
+** DONE Improve IR
+   CLOSED: [2019-06-17 ma. 22:22]
 
    New instruction set:
    - Move/Modify (mm)
@@ -38,7 +40,7 @@
    - input/output
    - Move/Set
      Set the value of the cell directly
-     
+
    All instructions can take an offset field. This is relative to the
    start of the loop. Move/Modify instructions can be reordered inbetween
    input/output and loops.
@@ -70,7 +72,7 @@
      - The loop sequence instructions must all have defined relative movements.
      - The relative movement of the loop sequence must sum to zero, *OR* the
        number of loop iterations must be known.
-   - If the relative movement of a loop becomes known the 
+   - If the relative movement of a loop becomes known the
 
    Using relative movement:
    - Modify instructions can directly modify [base + rel] instead of updating the
@@ -85,7 +87,8 @@
 *** TODO Set instead of modify when cell value is known
 *** TODO Cell offset when we have a known cell index
 ** TODO Static analysis
-*** TODO Dead code elimination
+*** DONE Dead code elimination
+    CLOSED: [2019-06-17 ma. 22:22]
 **** DONE Dead loops (known zero cell at start)
      - Start of program
      - Immediately after another loop
@@ -96,7 +99,7 @@
    Current design works for running a program from start to finish.
    A debugger would want to update the program underway (costly
    updates is ok).
-   
+
 * [#C] Debugger
 ** TODO Debugging UI
 *** Proposed design:
@@ -134,4 +137,23 @@
 *** TODO Moving data pointer and instruction pointer forwards and backwards
 *** TODO Live-editing instructions
 *** TODO Time-traveling debugger
+* TODO Optimize the actual compiler
+** Something is making the compiler take a lot of time with the new IR.
 
+* Benchmarks
+** Switched to new IR with some new optimizations (6930e8b)
+
+ Test             :       Time  | Good
+ helloworld   -O3 :      0.002s | True
+ dbfi         -O3 :      1.455s | True
+ prime        -O3 :      0.034s | True
+ mandelbrot   -O3 :      0.445s | True
+ hanoi        -O3 :      0.021s | True
+** first benchmarks (e62f8d9)
+
+ Test             :       Time  | Good
+ helloworld   -O3 :      0.003s | True
+ dbfi         -O3 :      1.454s | True
+ prime        -O3 :      0.224s | True
+ mandelbrot   -O3 :      0.694s | True
+ hanoi        -O3 :      0.021s | True
