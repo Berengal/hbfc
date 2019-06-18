@@ -1,6 +1,6 @@
 module Language.Brainfuck.Compiler.Optimization.Passes where
 
-import Language.Brainfuck.Compiler.AdvancedIR
+import Language.Brainfuck.Compiler.IR
 
 import Data.Sequence hiding (sortOn)
 import Data.Foldable
@@ -12,13 +12,13 @@ data OptimizationPass = SinglePass SinglePass
                       | SequencePass SequencePass
                       | WholeProgramPass WholeProgramPass
 
-type PairPass = AdvancedIR -> AdvancedIR -> Maybe (Seq AdvancedIR)
-type SinglePass = AdvancedIR -> Maybe (Seq AdvancedIR)
-type SequencePass = Seq AdvancedIR -> Maybe (Seq AdvancedIR)
-type WholeProgramPass = Seq AdvancedIR -> Maybe (Seq AdvancedIR)
+type PairPass = IntermediateCode -> IntermediateCode -> Maybe (Seq IntermediateCode)
+type SinglePass = IntermediateCode -> Maybe (Seq IntermediateCode)
+type SequencePass = Seq IntermediateCode -> Maybe (Seq IntermediateCode)
+type WholeProgramPass = Seq IntermediateCode -> Maybe (Seq IntermediateCode)
 
 
-mergeModifySet :: AdvancedIR -> AdvancedIR -> Maybe (Seq AdvancedIR)
+mergeModifySet :: IntermediateCode -> IntermediateCode -> Maybe (Seq IntermediateCode)
 -- Modify zero + move/modify = ignore first, add movement to second
 mergeModifySet (Modify 0 offA movA) (Modify amtB offB movB)
   = Just $ singleton (Modify amtB offB (movA + movB))
@@ -76,7 +76,7 @@ sortModifys = Just
                           | otherwise = x
 
 
-isSetOrModify :: AdvancedIR -> Bool
+isSetOrModify :: IntermediateCode -> Bool
 isSetOrModify (Modify _ _ _) = True
 isSetOrModify (Set _ _ _)    = True
 isSetOrModify _              = False

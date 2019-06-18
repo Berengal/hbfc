@@ -1,15 +1,9 @@
-module Language.Brainfuck.Compiler.AdvancedIR where
-
-import qualified Language.Brainfuck.Compiler.BFIR as BFIR
+module Language.Brainfuck.Compiler.IR where
 
 import           Language.Brainfuck.Parser
 
 import           Control.Monad.State
-import           Data.Function
-import           Data.List
-import           Data.Maybe
-import           Data.Ord
-import Data.Sequence
+import           Data.Sequence
 
 
 -- | Movement commands are turned into offsets instead. The offsets are based
@@ -17,7 +11,7 @@ import Data.Sequence
 -- BaseIndex instruction. In addition to the basic instructions (modify, input,
 -- output and loop) there are also Set and Multiply instructions produced by
 -- optimization passes.
-data AdvancedIR
+data IntermediateCode
   = Modify    { modifyAmount     :: Int
               , offset           :: Int
               , relativeMovement :: RelativeMovement
@@ -44,7 +38,7 @@ data AdvancedIR
               }
   | Loop      { offset           :: Int
               , relativeMovement :: RelativeMovement
-              , body             :: Seq AdvancedIR
+              , body             :: Seq IntermediateCode
               }
   deriving (Show, Eq)
 
@@ -52,23 +46,23 @@ data RelativeMovement = Known Int
                       | Unknown
   deriving (Eq, Show)
 
-mbUnknown _ Unknown _           = Unknown
-mbUnknown _ _ Unknown           = Unknown
-mbUnknown f (Known a) (Known b) = Known (f a b)
+doRelMov _ Unknown _           = Unknown
+doRelMov _ _ Unknown           = Unknown
+doRelMov f (Known a) (Known b) = Known (f a b)
 instance Num RelativeMovement where
-  a + b = mbUnknown (+) a b
-  a - b = mbUnknown (-) a b
-  a * b = mbUnknown (*) a b
+  a + b = doRelMov (+) a b
+  a - b = doRelMov (-) a b
+  a * b = doRelMov (*) a b
   fromInteger = Known . fromInteger
   abs (Known n) = Known (abs n)
   abs Unknown   = Unknown
   signum (Known n) = Known (signum n)
   signum Unknown   = Unknown
 
-fromBFProgram :: BFProgram -> Seq AdvancedIR
+fromBFProgram :: BFProgram -> Seq IntermediateCode
 fromBFProgram (BFProgram prog) = fst (evalState (go prog) 0)
   where
-    go :: String -> State Int (Seq AdvancedIR, String)
+    go :: String -> State Int (Seq IntermediateCode, String)
     go ('+':r) = do
       off <- get
       (rest, r') <- go r
@@ -106,4 +100,4 @@ fromBFProgram (BFProgram prog) = fst (evalState (go prog) 0)
     go (']':r) =
       return (Empty, r)
     go [] = return (Empty, [])
-    go _ = error "Invalid BFProgram (AdvancedIR.fromBFProgram)"
+    go _ = error "Invalid BFProgram (IR.fromBFProgram)"

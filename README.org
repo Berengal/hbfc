@@ -1,0 +1,103 @@
+* hbfc - Optimizing brainfuck compiler
+  =hbfc= is an optimizing brainfuck compiler that compiles brainfuck programs to
+  native executables via LLVM.
+
+  Also included is an interpreter, =hbfi=. It is slow and poor, but it does its best.
+
+** Runtime features
+   - Arbitrary tape length
+     - default 30000
+   - Start at any position on the tape
+     - default leftmost (position 0)
+   - Multiple cell sizes
+     - 8-bit
+     - 32-bit - default
+     - 64-bit
+   - EOF-behavior - Reading EOF can either;
+     - Leave the cell unchanged - default
+     - Set it to zero
+     - Set it to -1
+
+** Optimizations
+   =hbfc= does multiple useful optimizations. The first that will always happen
+   is rewriting move instructions to become offsets from some base index
+   instead. This optimization is intrinsic to how the hbfc IR is implemented and
+   therefore always has to be performed.
+
+   Depending on optimization level =hbfc= will additionally:
+   - -O0
+     Not do anything. The BF program is converted more or less as-is to LLVM
+     assembly, adding numbers one at a time.
+   - -O1 (default)
+     - Group up modifications to the same cell into a single update.
+   - -O2
+     - Detect multiplication loops
+       These are loops that perform multiplication, often on multiple cells at
+       the same time. They are also used to copy a value or set a cell to zero.
+       These can loops can be replaced by a few simple assembly instructions.
+     - Remove dead code (comment loops mostly)
+   - -O3
+     Doesn't do anything else, but really wishes it did. (Although it does
+     affect the LLVM optimizations)
+
+   By default the -Olevel is also used to specify the LLVM-optimizations used,
+   but this can be overridden with the =--llvm-opt= option. If this option is
+   =2= or =3= then the LLVM optimization pass is run twice as this produces
+   noticeably better output.
+
+   Warning: Large programs can cause the LLVM optimization pass to take an
+   extraordinarily long time to run. If you're looking at a brainfuck program in
+   the megabyte range then consider using =--llvm-opt 0=, and without at least
+   =-O1= to reduce the size of the llvm-assembly it's almost certainly not going
+   to compile.
+
+** Output
+   By default =hbfc= creates an executable, but other options are available
+   using the =--format= option:
+   - =-fll= - llvm-assembly
+   - =-fbc= - llvm-bytecode
+   - =-fs= - host-assembly
+   - =-fo= - host-object file
+
+
+** Building and running
+
+   Build using stack:
+   #+BEGIN_SRC shell
+   stack build
+   #+END_SRC
+
+   Run by invoking stack run (note the use of =--= to let stack know the
+   remaining arguments belong to =hbfc=).
+   #+BEGIN_SRC shell
+   stack run bfc -- -O2 helloworld.bf
+   #+END_SRC
+
+   Alternatively use stack to install the binaries
+   #+BEGIN_SRC shell
+   stack install
+   #+END_SRC
+   Depending on your stack setup they will end up in =~/.local/bin=
+
+   Finally, you can root around in =.stack-work/= for the built binaries
+   yourself.
+
+** External dependencies
+   In addition to the dependencies listed in the package you also need:
+   - llvm 8
+   - a C-compiler (=cc= must be aliased)
+
+* Shoutouts
+
+** [[https://esolangs.org/wiki/Brainfuck][Esolang wiki]] for its list of helpful links
+   Some of which contain brainfuck code I've borrowed for testing purposes
+** [[https://github.com/Wilfred/bfc][bfc]] - An industrial strength brainfuck compiler written in rust
+   I found this project when I checked if the "bfc" name was free. Of course it
+   wasn't, but in return I found this compiler and the accompanying blog posts
+   were pretty neat.
+
+
+* BF source credits:
+  - [[http://www.hevanet.com/cristofd/brainfuck/]]
+  - [[http://esoteric.sange.fi/brainfuck/]]
+  - Other random sources gathered through third-parties (credits in sources where available)

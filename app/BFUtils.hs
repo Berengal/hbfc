@@ -7,22 +7,17 @@ module BFUtils where
 
 import           Language.Brainfuck.Compiler.Options
 
-import           LLVM
 import qualified LLVM.CodeGenOpt                     as CodeGenOpt
 import qualified LLVM.CodeModel                      as CodeModel
-import           LLVM.Context
-import           LLVM.IRBuilder
-import           LLVM.Module
 import qualified LLVM.Relocation                     as Reloc
 import           LLVM.Target
-import           LLVM.Target.Options
 
 import           Data.Maybe
 import           Options.Applicative
 import           System.FilePath
 
-import           Data.ByteString.Short
 
+withTargetMachineOptions :: OptimizationLevel -> (TargetMachine -> IO a) -> IO a
 withTargetMachineOptions optimizationLevel action = do
   initializeNativeTarget
   triple <- getProcessTargetTriple
@@ -47,6 +42,7 @@ withTargetMachineOptions optimizationLevel action = do
       Medium     -> CodeGenOpt.Default
       Aggressive -> CodeGenOpt.Aggressive
 
+opts :: ParserInfo CompilerOptions
 opts = info (compilerOptions <**> helper)
   ( fullDesc
   <> progDesc "Compile a brainfuck program"
@@ -106,7 +102,7 @@ compilerOptions = do
     arrs = eitherReader $ \case
       ('i':_) -> Right InfiniteSizeArray
       "0"     -> Right InfiniteSizeArray
-      (readsPrec 0 -> [(s,[])]) -> Right (FiniteSizeArray s)
+      (reads -> [(s,[])]) -> Right (FiniteSizeArray s)
       _       -> Left "Invalid array size. Valid sizes: (1-(2^32-1)|infinite/0)"
     optl = eitherReader $ \case
       "0" -> Right None

@@ -1,7 +1,6 @@
 module Language.Brainfuck.Compiler.Options where
 
 import           Data.Word
-import           System.IO
 
 data CodeGenOptions = CGO
   { dataSize    :: DataArraySize
@@ -43,7 +42,7 @@ defaultCellSize          = I32
 defaultEofBehavior       = NoChange
 defaultOutputFormat      = Executable
 defaultOutputDestination = Nothing
-defaultOptimizationLevel = None
+defaultOptimizationLevel = Simple
 
 defaultCodeGenOptions = CGO
   { dataSize    = defaultDataArraySize
@@ -60,4 +59,3 @@ defaultCompilerOpts inputSource = CO
   , llvmOptimization  = defaultOptimizationLevel
   , codeGenOptions    = defaultCodeGenOptions
   }
-

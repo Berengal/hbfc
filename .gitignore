@@ -1,6 +1,6 @@
 .stack-work/
 dist/
-brainfuck.cabal
+hbfc.cabal
 a.out
 *~
 .dir-locals.el

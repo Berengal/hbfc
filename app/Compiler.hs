@@ -51,13 +51,14 @@ doCompile options@CO{..} = do
       llvmTransformPass target options mod
       let outputType | outputFormat == Executable = Object
                      | otherwise = outputFormat
-          outputPath | outputFormat == Executable = Just (getTargetName inputSource Object)
+          objectPath = getTargetName inputSource Object
+          outputPath | outputFormat == Executable = Just objectPath
                      | otherwise = outputDestination
       outputBytes <- createOutput outputType mod target
       writeOutput outputPath outputBytes
 
       if outputFormat == Executable
-        then do exit <- rawSystem "cc" ["-o", fromMaybe "-" outputDestination, fromJust outputPath]
+        then do exit <- rawSystem "cc" ["-o", fromMaybe "-" outputDestination, objectPath]
                 exitWith exit
         else return ()
 
@@ -101,5 +102,3 @@ writeOutput outputDestination bytes = withOutputHandle (flip BS.hPutStr bytes)
     withOutputHandle action = case outputDestination of
       Nothing   -> action stdout
       Just path -> withFile path WriteMode action
-
-

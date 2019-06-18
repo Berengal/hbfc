@@ -1,23 +1,18 @@
-name:                brainfuck
+name:                hbfc
 version:             0.1.0.0
-github:              "Berengal/brainfuck"
-license:             BSD3
+github:              "Berengal/hbfc"
+license:             GPL-3.0-only
 author:              "Sjur Gjøstein Karevoll"
 maintainer:          "sjurberengal@gmail.com"
 copyright:           "2019 Sjur Gjøstein Karevoll"
 
 extra-source-files:
-- README.md
-- ChangeLog.md
+- README.org
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
+synopsis:            Optimizing Brainf*ck compiler
+category:            Language
 
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/Berengal/brainfuck#readme>
+description:         Please see the README on GitHub at <https://github.com/Berengal/hbfc#readme>
 
 dependencies:
 - base >= 4.11 && < 5
@@ -38,7 +33,7 @@ library:
   source-dirs: src
 
 executables:
-  bfi:
+  hbfi:
     main:                Interpreter
     source-dirs:         app
     ghc-options:
@@ -48,11 +43,11 @@ executables:
     - -with-rtsopts=-N2
     - -with-rtsopts=-qg1
     dependencies:
-      - brainfuck
+      - hbfc
       - optparse-applicative >= 0.14.3.0 && <0.15
       - filepath >= 1.4.2.1 && <1.5
 
-  bfc:
+  hbfc:
     main:                Compiler
     source-dirs:         app
     ghc-options:
@@ -62,7 +57,7 @@ executables:
     - -with-rtsopts=-N2
     - -with-rtsopts=-qg1
     dependencies:
-      - brainfuck
+      - hbfc
       - optparse-applicative >= 0.14.3.0 && <0.15
       - filepath >= 1.4.2.1 && <1.5
 
@@ -76,6 +71,6 @@ tests:
     - -with-rtsopts=-N2
     - -with-rtsopts=-qg1
     dependencies:
-      - brainfuck
+      - hbfc
       - QuickCheck >= 2.12.6.1 && < 2.14
       - hspec >= 2.6.1 && <2.8

@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Brainfuck.Compiler where
 
-import           Language.Brainfuck.Compiler.AdvancedIR
+import           Language.Brainfuck.Compiler.IR
 import           Language.Brainfuck.Compiler.CodeGen
 import           Language.Brainfuck.Compiler.Optimization
 import           Language.Brainfuck.Compiler.Optimization.Passes

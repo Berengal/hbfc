@@ -8,7 +8,7 @@ module Language.Brainfuck.Compiler.CodeGen where
 
 import           Prelude                                   hiding (EQ)
 
-import           Language.Brainfuck.Compiler.AdvancedIR
+import           Language.Brainfuck.Compiler.IR
 import           Language.Brainfuck.Compiler.CodeGen.Utils
 import           Language.Brainfuck.Compiler.Options
 
@@ -16,13 +16,11 @@ import           LLVM.AST                                  hiding (function)
 import           LLVM.AST.Constant
 import           LLVM.AST.Global
 import qualified LLVM.AST.Global                           as Glob
-import           LLVM.AST.Instruction                      hiding (function)
 import           LLVM.AST.IntegerPredicate
 import           LLVM.AST.Type
 import           LLVM.AST.Visibility
 import           LLVM.IRBuilder                            hiding (global,
                                                             int32, int64, int8)
-import           LLVM.IRBuilder.Module                     hiding (global)
 
 import           Data.Sequence
 
@@ -63,7 +61,7 @@ defaultDefs = do
 
   return PrimDefs{..}
 
-mainModule :: CodeGenOptions -> Seq AdvancedIR -> ModuleBuilder ()
+mainModule :: CodeGenOptions -> Seq IntermediateCode -> ModuleBuilder ()
 mainModule CGO{..} program = do
 
   primDefs@PrimDefs {..} <- defaultDefs
@@ -82,7 +80,7 @@ mainModule CGO{..} program = do
 
   function "main" [(i32, "argc"), (ptr (ptr i8), "argv")] i32 $ \_ -> do
     dataPointer <- alloca typeSize_t Nothing 1 `named` "dataPointer"
-    store dataPointer 1 (size_t 0)
+    store dataPointer 1 (size_t (fromIntegral dataStart))
 
     handle      <- load libc_stdout 1
     call libc_setvbuf
@@ -97,14 +95,14 @@ mainModule CGO{..} program = do
 data CompilerConstants =
   CC { dataPointer :: Operand
      , dataArray   :: Operand
-     , cellType    :: Type
-     , cellVal     :: Integer -> Operand
+     , cellType    :: Type -- ^ Configurable type
+     , cellVal     :: Integer -> Operand -- ^ To make constants of the cell type
      , eofBehavior :: EofBehavior
      , primDefs    :: PrimDefs
      }
 
 compile :: CompilerConstants
-        -> AdvancedIR
+        -> IntermediateCode
         -> IRBuilderT (ModuleBuilder) ()
 compile cc@CC{primDefs=PrimDefs{..},..} = \case
   Modify{modifyAmount, offset} -> do
@@ -120,7 +118,7 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
   Multiply{offset, offsetFrom, scale, step} -> do
     fromIndex <- dataIndex offsetFrom
     fromVal   <- load fromIndex 1
-    times     <- sdiv fromVal (cellVal (fromIntegral step))
+    times     <- sdiv fromVal (cellVal (fromIntegral step)) -- [Overflow is UB]
     mult      <- mul times (cellVal (fromIntegral scale))
 
     toIndex <- dataIndex offset
@@ -139,10 +137,10 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     neq   <- icmp NE val (cellVal 0)
     condBr neq loopStart loopEnd
 
-    compile cc (BaseIndex offset 0)
+    compile cc (BaseIndex offset 0) -- Implicit BaseIndex before loop
 
     loopStart <- block; do
-      mapM_ (compile cc) body
+      mapM_ (compile cc) body -- Loops always end in a BaseIndex instruction
       index' <- dataIndex 0
       val'   <- load index' 1
       neq'   <- icmp NE val' (cellVal 0)
@@ -179,6 +177,12 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
       i <- add base (size_t (fromIntegral offset))
       gep dataArray [size_t 0, i]
 
+{- [Overflow is UB]
+
+Because overflow is undefined behavior it's okay to assume that diving by the
+multiplication step never yields a remained. If it did have a remainder the
+original loop would've missed the zero, triggering the UB.
+-}
 
 -- TODO Error handling in compiler is a good idea
 i32ToCell ty c | ty == i8  = trunc c i8

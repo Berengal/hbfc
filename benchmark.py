@@ -19,11 +19,11 @@ sourceDir = "bfsrc"
 inputDir = "bfsrc"
 expectedDir = "integration"
 tmpDir = "benchmarkTmp"
-compileCommand = "stack run bfc -- "
+compileCommand = "stack run hbfc -- "
 
 optLevels = []
-# optLevels.append("-O0")
-# optLevels.append("-O1")
+optLevels.append("-O0")
+optLevels.append("-O1")
 optLevels.append("-O3")
 
 def runTest(test, optLevel, baseDir):
@@ -74,4 +74,3 @@ if __name__ == '__main__':
 
   for result in results:
     print("{0.name:12} {0.optLevel} : {0.time:>10.3f}s | {0.ok}".format(result))
-

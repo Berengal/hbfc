@@ -1,6 +1,6 @@
 module Language.Brainfuck.Compiler.OptimizationSpec where
 
-import           Language.Brainfuck.Compiler.AdvancedIR
+import           Language.Brainfuck.Compiler.IR
 import           Language.Brainfuck.Compiler.Optimization
 import           Language.Brainfuck.Compiler.Optimization.Passes
 import           Language.Brainfuck.Parser
