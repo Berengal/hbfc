@@ -22,8 +22,8 @@ tmpDir = "benchmarkTmp"
 compileCommand = "stack run hbfc -- "
 
 optLevels = []
-optLevels.append("-O0")
-optLevels.append("-O1")
+# optLevels.append("-O0")
+# optLevels.append("-O1")
 optLevels.append("-O3")
 
 def runTest(test, optLevel, baseDir):

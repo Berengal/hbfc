@@ -137,7 +137,7 @@ compile cc@CC{primDefs=PrimDefs{..},..} = \case
     neq   <- icmp NE val (cellVal 0)
     condBr neq loopStart loopEnd
 
-    compile cc (BaseIndex offset 0) -- Implicit BaseIndex before loop
+    compile cc (BaseIndex offset) -- Implicit BaseIndex before loop
 
     loopStart <- block; do
       mapM_ (compile cc) body -- Loops always end in a BaseIndex instruction

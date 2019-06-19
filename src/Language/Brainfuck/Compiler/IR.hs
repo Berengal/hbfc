@@ -14,50 +14,27 @@ import           Data.Sequence
 data IntermediateCode
   = Modify    { modifyAmount     :: Int
               , offset           :: Int
-              , relativeMovement :: RelativeMovement
               }
   | Set       { setAmount        :: Int
               , offset           :: Int
-              , relativeMovement :: RelativeMovement
               }
     -- | Multiply = offset + (offsetFrom / step) * scale
   | Multiply  { offset           :: Int
               , offsetFrom       :: Int
               , scale            :: Int
               , step             :: Int
-              , relativeMovement :: RelativeMovement
               }
   | Input     { offset           :: Int
-              , relativeMovement :: RelativeMovement
               }
   | Output    { offset           :: Int
-              , relativeMovement :: RelativeMovement
               }
   | BaseIndex { offset           :: Int -- ^ Sets the base index to be = the offset
-              , relativeMovement :: RelativeMovement
               }
   | Loop      { offset           :: Int
-              , relativeMovement :: RelativeMovement
               , body             :: Seq IntermediateCode
               }
   deriving (Show, Eq)
 
-data RelativeMovement = Known Int
-                      | Unknown
-  deriving (Eq, Show)
-
-doRelMov _ Unknown _           = Unknown
-doRelMov _ _ Unknown           = Unknown
-doRelMov f (Known a) (Known b) = Known (f a b)
-instance Num RelativeMovement where
-  a + b = doRelMov (+) a b
-  a - b = doRelMov (-) a b
-  a * b = doRelMov (*) a b
-  fromInteger = Known . fromInteger
-  abs (Known n) = Known (abs n)
-  abs Unknown   = Unknown
-  signum (Known n) = Known (signum n)
-  signum Unknown   = Unknown
 
 fromBFProgram :: BFProgram -> Seq IntermediateCode
 fromBFProgram (BFProgram prog) = fst (evalState (go prog) 0)
@@ -66,29 +43,29 @@ fromBFProgram (BFProgram prog) = fst (evalState (go prog) 0)
     go ('+':r) = do
       off <- get
       (rest, r') <- go r
-      return (Modify 1 off (Known 0) :<| rest, r')
+      return (Modify 1 off :<| rest, r')
     go ('-':r) = do
       off <- get
       (rest, r') <- go r
-      return (Modify (-1) off (Known 0) :<| rest, r')
+      return (Modify (-1) off :<| rest, r')
     go ('>':r) = do
       off <- get
       put (off+1)
       (rest, r') <- go r
-      return (Modify 0 (off+1) (Known 1) :<| rest, r')
+      return (Modify 0 (off+1) :<| rest, r')
     go ('<':r) = do
       off <- get
       put (off-1)
       (rest, r') <- go r
-      return (Modify 0 (off-1) (Known (-1)) :<| rest , r')
+      return (Modify 0 (off-1) :<| rest , r')
     go (',':r) = do
       off <- get
       (rest, r') <- go r
-      return (Input off (Known 0) :<| rest, r')
+      return (Input off :<| rest, r')
     go ('.':r) = do
       off <- get
       (rest, r') <- go r
-      return (Output off (Known 0) :<| rest, r')
+      return (Output off :<| rest, r')
     go ('[':r) = do
       off <- get
       put 0
@@ -96,7 +73,7 @@ fromBFProgram (BFProgram prog) = fst (evalState (go prog) 0)
       index <- get
       put 0
       (rest, r'') <- go r'
-      return (Loop off Unknown (body |> BaseIndex index 0) :<| rest, r'')
+      return (Loop off (body |> BaseIndex index ) :<| rest, r'')
     go (']':r) =
       return (Empty, r)
     go [] = return (Empty, [])

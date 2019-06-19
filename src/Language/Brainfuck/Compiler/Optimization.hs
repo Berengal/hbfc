@@ -11,8 +11,8 @@ import           Prelude                                         hiding (filter)
 
 multiplyPass :: [OptimizationPass]
 multiplyPass = [ SinglePass filterZeroBaseIndex
-               , SinglePass findLoopMovement
                , SinglePass loopToMult
+               , SequencePass propagateBaseIndex
                ]
 
 reorderModifyPass :: [OptimizationPass]
@@ -65,13 +65,13 @@ runWholeProgramPass pass program = fromMaybe program (pass program)
 -- The first instruction will only be given once, as the first argument, and
 -- likewise tha last instruction will only be applied once, as the second argument.
 runPairPass :: PairPass -> Seq IntermediateCode -> Seq IntermediateCode
-runPairPass pass (Loop off knownMovement body :<|y :<|rest)
-  = let loop' = Loop off knownMovement (runPairPass pass body)
+runPairPass pass (Loop off body :<|y :<|rest)
+  = let loop' = Loop off (runPairPass pass body)
     in case pass loop' y of
       Nothing          -> loop' :<|runPairPass pass (y :<|rest)
       Just replacement -> runPairPass pass (replacement <> rest)
-runPairPass pass (Loop off knownMovement body :<| Empty)
-  = singleton (Loop off knownMovement (runPairPass pass body))
+runPairPass pass (Loop off body :<| Empty)
+  = singleton (Loop off (runPairPass pass body))
 runPairPass pass (x :<|y :<|rest)
   = case pass x y of
       Nothing          -> x :<|runPairPass pass (y :<|rest)
@@ -81,10 +81,10 @@ runPairPass _ rest = rest
 -- Runs a single-instruction pass over the sequence. Loops are passed twice:
 -- Once before any pass is run on the loop body and once after.
 runSinglePass :: SinglePass -> Seq IntermediateCode -> Seq IntermediateCode
-runSinglePass pass (loop@(Loop off knownMovement body) :<|rest)
+runSinglePass pass (loop@(Loop off body) :<|rest)
   = case pass loop of
       Just replacement -> runSinglePass pass (replacement <> rest)
-      Nothing -> let loop' = Loop off knownMovement (runSinglePass pass body)
+      Nothing -> let loop' = Loop off (runSinglePass pass body)
                  in case pass loop' of
                       Nothing -> loop' :<|runSinglePass pass rest
                       Just replacement -> replacement <> runSinglePass pass rest
@@ -101,5 +101,5 @@ runSequencePass pass seq =
     Nothing          -> seq'
     Just replacement -> replacement
   where
-    onLoops func (Loop off mov body) = Loop off mov (func body)
+    onLoops func (Loop off body) = Loop off (func body)
     onLoops _ whatever               = whatever

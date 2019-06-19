@@ -141,19 +141,28 @@
 ** Something is making the compiler take a lot of time with the new IR.
 
 * Benchmarks
+
+** Added forward propagation of base index, removed relativeMovement
+
+   Test             :       Time  | Good
+   helloworld   -O3 :      0.002s | True
+   dbfi         -O3 :      1.455s | True
+   prime        -O3 :      0.033s | True
+   mandelbrot   -O3 :      0.435s | True
+   hanoi        -O3 :      0.020s | True
 ** Switched to new IR with some new optimizations (6930e8b)
 
- Test             :       Time  | Good
- helloworld   -O3 :      0.002s | True
- dbfi         -O3 :      1.455s | True
- prime        -O3 :      0.034s | True
- mandelbrot   -O3 :      0.445s | True
- hanoi        -O3 :      0.021s | True
+   Test             :       Time  | Good
+   helloworld   -O3 :      0.002s | True
+   dbfi         -O3 :      1.455s | True
+   prime        -O3 :      0.034s | True
+   mandelbrot   -O3 :      0.445s | True
+   hanoi        -O3 :      0.021s | True
 ** first benchmarks (e62f8d9)
 
- Test             :       Time  | Good
- helloworld   -O3 :      0.003s | True
- dbfi         -O3 :      1.454s | True
- prime        -O3 :      0.224s | True
- mandelbrot   -O3 :      0.694s | True
- hanoi        -O3 :      0.021s | True
+   Test             :       Time  | Good
+   helloworld   -O3 :      0.003s | True
+   dbfi         -O3 :      1.454s | True
+   prime        -O3 :      0.224s | True
+   mandelbrot   -O3 :      0.694s | True
+   hanoi        -O3 :      0.021s | True

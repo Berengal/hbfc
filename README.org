@@ -70,7 +70,7 @@
    Run by invoking stack run (note the use of =--= to let stack know the
    remaining arguments belong to =hbfc=).
    #+BEGIN_SRC shell
-   stack run bfc -- -O2 helloworld.bf
+   stack run hbfc -- -O2 helloworld.bf
    #+END_SRC
 
    Alternatively use stack to install the binaries
