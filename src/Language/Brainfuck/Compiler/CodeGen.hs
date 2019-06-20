@@ -103,7 +103,7 @@ data CompilerConstants =
 
 compile :: CompilerConstants
         -> IntermediateCode
-        -> IRBuilderT (ModuleBuilder) ()
+        -> IRBuilderT ModuleBuilder ()
 compile cc@CC{primDefs=PrimDefs{..},..} = \case
   Modify{modifyAmount, offset} -> do
     index <- dataIndex offset

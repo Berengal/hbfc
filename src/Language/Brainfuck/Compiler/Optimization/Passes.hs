@@ -42,13 +42,10 @@ mergeModifySet _ _ = Nothing
 
 loopToMult :: SinglePass
 loopToMult (Loop off body)
-  | all (\(BaseIndex n) -> n == 0) endBase
-    && all isSetOrModify body'
+  | all isSetOrModify body
   = Just (fmap makeMult notBase <> fromList [Set 0 off, BaseIndex off])
   where
-    (body', endBase) | (s :|> BaseIndex n) <- body = (s, BaseIndex n <| Empty)
-                     | otherwise = (body, Empty)
-    (base, notBase) = partition ((==0) . offset) body'
+    (base, notBase) = partition ((==0) . offset) body
     step = negate (foldl' sumSetModify 0 base)
     sumSetModify _ (Set n _)    = n
     sumSetModify n (Modify m _) = n + m
