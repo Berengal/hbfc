@@ -13,23 +13,9 @@
 ** DONE Configurable data array size
 ** TODO [#C] Configurable target-machine properties
    Not hardcoded to x86-64, no hard-coded size_t
-* TODO Tests and benchmarks
-** IN-PROGRESS Hspec tests for compiler.
-*** Test various codegen options
-**** TODO Different size cells
-     - [ ] i8
-     - [ ] i32
-     - [ ] i64
-**** TODO Different size array
-     - [ ] 30000 (default)
-     - [ ] Really big ones
-     - [ ] Really small ones
-** IN-PROGRESS QuickCheck tests for parser of IR
-*** DONE Making sure valid programs stay valid going from plain instructions to BFIR
-*** DONE Splitting and rejoining BFIR in random position is idempotent
 * IN-PROGRESS Optimizing compiler
 ** IN-PROGRESS Optimizer pipeline structure
-*** TODO
+*** TODO Merge compatible passes into a single pass that does one traversal
 ** DONE Improve IR
    CLOSED: [2019-06-17 ma. 22:22]
 
@@ -86,7 +72,7 @@
 *** TODO Modify and move can be merged to a single instruction
 *** TODO Set instead of modify when cell value is known
 *** TODO Cell offset when we have a known cell index
-** TODO Static analysis
+** IN-PROGRESS Static analysis
 *** DONE Dead code elimination
     CLOSED: [2019-06-17 ma. 22:22]
 **** DONE Dead loops (known zero cell at start)
@@ -94,6 +80,10 @@
      - Immediately after another loop
 **** TODO Useless code at end of program
      Anything after the last IO operation is pointless
+** Get rid of excess loads and stores?
+   By keeping a map from offsets to operands maybe extraneous loads can be
+   avoided. Setting base index prompts a store of the map, and discards the map.
+   Something to investigate at least.
 * [#C] Interpreter improvements
 ** Design for external manipulation
    Current design works for running a program from start to finish.
@@ -137,10 +127,32 @@
 *** TODO Moving data pointer and instruction pointer forwards and backwards
 *** TODO Live-editing instructions
 *** TODO Time-traveling debugger
-* TODO Optimize the actual compiler
-** Something is making the compiler take a lot of time with the new IR.
+* Optimize the actual compiler
+** DONE Something is making the compiler take a lot of time with the new IR.
+   CLOSED: [2019-06-20 to. 12:11]
+*** =named= causes quadratic behaviour when the same name is used a lot.
 
 * Benchmarks
+
+** Caching load/stores across multiple instructions
+
+   Test             :       Time  | Good
+   helloworld   -O3 :      0.002s | True
+   dbfi         -O3 :      1.430s | True
+   prime        -O3 :      0.033s | True
+   mandelbrot   -O3 :      0.436s | True
+   hanoi        -O3 :      0.020s | True
+
+** Simplified loopToMult (4b6c19c)
+
+   Test             :       Time  | Good
+   helloworld   -O3 :      0.002s | True
+   dbfi         -O3 :      1.506s | True
+   prime        -O3 :      0.035s | True
+   mandelbrot   -O3 :      0.455s | True
+   hanoi        -O3 :      0.021s | True
+
+   (Note: old benchmarks also ran slower here, PC issues I guess
 
 ** Added forward propagation of base index, removed relativeMovement
 

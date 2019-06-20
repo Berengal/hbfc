@@ -11,19 +11,14 @@ import           Language.Brainfuck.Parser
 import           LLVM
 import qualified LLVM.AST                            as AST
 import           LLVM.Context
-import           LLVM.IRBuilder
-import           LLVM.Module
 import           LLVM.PassManager
 import           LLVM.Target
 
 import           Control.Monad
 import qualified Data.ByteString.Char8               as BS
 import qualified Data.ByteString.Short               as BSS
-import qualified Data.Map                            as Map
 import           Data.Maybe
-import qualified Data.Set                            as Set
 import           Options.Applicative
-import           System.Environment
 import           System.Exit
 import           System.IO
 import           System.Process

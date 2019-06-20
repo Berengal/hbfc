@@ -8,10 +8,14 @@ module Language.Brainfuck.Compiler.CodeGen where
 
 import           Prelude                                   hiding (EQ)
 
-import           Language.Brainfuck.Compiler.IR
 import           Language.Brainfuck.Compiler.CodeGen.Utils
+import           Language.Brainfuck.Compiler.IR
 import           Language.Brainfuck.Compiler.Options
 
+import           Control.Monad.State
+import           Data.IntMap
+import qualified Data.IntMap                               as IntMap
+import           Data.Sequence
 import           LLVM.AST                                  hiding (function)
 import           LLVM.AST.Constant
 import           LLVM.AST.Global
@@ -21,8 +25,6 @@ import           LLVM.AST.Type
 import           LLVM.AST.Visibility
 import           LLVM.IRBuilder                            hiding (global,
                                                             int32, int64, int8)
-
-import           Data.Sequence
 
 
 data PrimDefs = PrimDefs
@@ -89,7 +91,13 @@ mainModule CGO{..} program = do
       , (libc__IONBF, [])
       , (size_t 0   , [])
       ]
-    mapM_ (compile (CC{..})) program
+
+    let constants = CC{..}
+
+    lastUpdates <- execCodeGen (mapM_ (compile constants) program)
+
+    writeUpdates (IntMap.toList lastUpdates) constants
+
     ret (int32 0)
   return ()
 data CompilerConstants =
@@ -103,86 +111,116 @@ data CompilerConstants =
 
 compile :: CompilerConstants
         -> IntermediateCode
-        -> IRBuilderT ModuleBuilder ()
+        -> CodeGenMonad ()
 compile cc@CC{primDefs=PrimDefs{..},..} = \case
   Modify{modifyAmount, offset} -> do
-    index <- dataIndex offset
-    val   <- load index 1
-    val'  <- add val (cellVal (fromIntegral modifyAmount))
-    store index 1 val'
+    val  <- loadIndex offset
+    val' <- add val (cellVal (fromIntegral modifyAmount))
+    storeIndex offset val'
 
   Set{setAmount, offset} -> do
-    index <- dataIndex offset
-    store index 1 (cellVal (fromIntegral setAmount))
+    storeIndex offset (cellVal (fromIntegral setAmount))
 
   Multiply{offset, offsetFrom, scale, step} -> do
-    fromIndex <- dataIndex offsetFrom
-    fromVal   <- load fromIndex 1
-    times     <- sdiv fromVal (cellVal (fromIntegral step)) -- [Overflow is UB]
-    mult      <- mul times (cellVal (fromIntegral scale))
+    fromVal <- loadIndex offsetFrom
+    times   <- sdiv fromVal (cellVal (fromIntegral step)) -- [Overflow is UB]
+    mult    <- mul times (cellVal (fromIntegral scale))
 
-    toIndex <- dataIndex offset
-    toVal   <- load toIndex 1
-    result  <- add toVal mult
-    store toIndex 1 result
+    toVal  <- loadIndex offset
+    result <- add toVal mult
+    storeIndex offset result
 
   BaseIndex{offset} -> do
+    writeCachedStores
     baseIndex <- load dataPointer 1
     newIndex  <- add baseIndex (size_t (fromIntegral offset))
     store dataPointer 1 newIndex
 
   Loop{offset, body} -> mdo
-    index <- dataIndex offset
-    val   <- load index 1
-    neq   <- icmp NE val (cellVal 0)
-    condBr neq loopStart loopEnd
+    val <- loadIndex offset
+    neq <- icmp NE val (cellVal 0)
 
     compile cc (BaseIndex offset) -- Implicit BaseIndex before loop
 
+    condBr neq loopStart loopEnd
+
     loopStart <- block; do
-      mapM_ (compile cc) body -- Loops always end in a BaseIndex instruction
-      index' <- dataIndex 0
-      val'   <- load index' 1
-      neq'   <- icmp NE val' (cellVal 0)
+      mapM_ (compile cc) body
+      val'    <- loadIndex 0 -- Loop condition is always at base 0 inside loop
+      neq'    <- icmp NE val' (cellVal 0)
+
+      -- Loop operands are not valid outside the loop
+      -- BaseIndex usually stores them, but BaseIndex 0 gets optimized away
+      writeCachedStores
+
       condBr neq' loopStart loopEnd
 
     loopEnd <- block
+
     return ()
 
   Input{offset} -> do
     char  <- call libc_getch []
     char' <- i32ToCell cellType char
-    index <- dataIndex offset
     eof   <- icmp EQ char libc_EOF
 
-    val   <- case eofBehavior of
+    val <- case eofBehavior of
       NoChange -> do
-        oldVal <- load index 1
+        oldVal <- loadIndex offset
         select eof oldVal char'
       SetZero  -> select eof (cellVal 0) char'
       SetEOF   -> select eof (cellVal (-1)) char'
 
-    store index 1 val
+    storeIndex offset val
 
   Output{offset} -> do
-    index <- dataIndex offset
-    val   <- load index 1
-    char  <- cellToI32 cellType val
+    val  <- loadIndex offset
+    char <- cellToI32 cellType val
     call libc_putch [(char, [])]
     return ()
 
   where
+    loadIndex :: Int -> CodeGenMonad Operand
+    loadIndex offset = do
+      saved     <- gets (IntMap.lookup offset . loadedCache)
+      case saved of
+        Just x       -> return x
+        Nothing      -> do
+          index <- dataIndex offset
+          val   <- load index 1
+          modifyLoadedCache (insert offset val)
+          return val
+
+    storeIndex :: Int -> Operand -> CodeGenMonad ()
+    storeIndex offset value =
+      modifyBothCache (insert offset value)
+
+    writeCachedStores = do
+      updates <- gets (toList . storedCache)
+      writeUpdates updates cc
+      put emptyCodeGenState
+
     dataIndex offset = do
       base <- load dataPointer 1
-      i <- add base (size_t (fromIntegral offset))
+      i    <- add base (size_t (fromIntegral offset))
       gep dataArray [size_t 0, i]
 
 {- [Overflow is UB]
 
 Because overflow is undefined behavior it's okay to assume that diving by the
-multiplication step never yields a remained. If it did have a remainder the
+multiplication step never yields a remainder. If it did have a remainder the
 original loop would've missed the zero, triggering the UB.
+
+TODO This can maybe be made configurable as overflow makes sense, at least for
+smaller cell sizes
 -}
+
+writeUpdates updates CC{dataPointer, dataArray, primDefs=PrimDefs{size_t}} =
+  forM_ updates $ \(cell, val) -> do
+  base  <- load dataPointer 1
+  i     <- add base (size_t (fromIntegral cell))
+  index <- gep dataArray [size_t 0, i]
+  store index 1 val
 
 -- TODO Error handling in compiler is a good idea
 i32ToCell ty c | ty == i8  = trunc c i8
