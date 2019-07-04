@@ -12,17 +12,17 @@ import           Data.Sequence
 -- output and loop) there are also Set and Multiply instructions produced by
 -- optimization passes.
 data IntermediateCode
-  = Modify    { modifyAmount     :: Int
-              , offset           :: Int
+  = Modify    { modifyAmount :: Int
+              , offset       :: Int
               }
-  | Set       { setAmount        :: Int
-              , offset           :: Int
+  | Set       { setAmount :: Int
+              , offset    :: Int
               }
     -- | Multiply = offset + (offsetFrom / step) * scale
-  | Multiply  { offset           :: Int
-              , offsetFrom       :: Int
-              , scale            :: Int
-              , step             :: Int
+  | Multiply  { offset     :: Int
+              , offsetFrom :: Int
+              , scale      :: Int
+              , step       :: Int
               }
   | Input     { offset           :: Int
               }
@@ -30,8 +30,8 @@ data IntermediateCode
               }
   | BaseIndex { offset           :: Int -- ^ Sets the base index to be = the offset
               }
-  | Loop      { offset           :: Int
-              , body             :: Seq IntermediateCode
+  | Loop      { offset :: Int
+              , body   :: Seq IntermediateCode
               }
   deriving (Show, Eq)
 

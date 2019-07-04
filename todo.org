@@ -178,3 +178,27 @@
    prime        -O3 :      0.224s | True
    mandelbrot   -O3 :      0.694s | True
    hanoi        -O3 :      0.021s | True
+* -split-sections review
+
+  | executable | -split-sections | strip | size |
+  |            |       <c>       |  <c>  |  <r> |
+  |------------+-----------------+-------+------|
+  | hbfc       |       no        |  no   |  20M |
+  | hbfc       |       no        |  yes  |  11M |
+  | hbfc       |       yes       |  no   | 6,6M |
+  | hbfc       |       yes       |  yes  | 3,6M |
+  |            |                 |       |      |
+  | hbfi       |       no        |  no   | 3,3M |
+  | hbfi       |       no        |  yes  | 903K |
+  | hbfi       |       yes       |  no   | 3,3M |
+  | hbfi       |       yes       |  yes  | 903K |
+  |            |                 |       |      |
+  | stack      |       no        |  no   |  99M |
+  | stack      |       no        |  yes  |  65M |
+  | stack      |       yes       |  no   |  51M |
+  | stack      |       yes       |  yes  |  33M |
+  |            |                 |       |      |
+  | aura       |       no        |  no   |  44M |
+  | aura       |       no        |  yes  |  28M |
+  | aura       |       yes       |  no   |  14M |
+  | aura       |       yes       |  yes  | 8,4M |

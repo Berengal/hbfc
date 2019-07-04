@@ -54,10 +54,9 @@ compilerOptions = do
     (short 'O'
     <> help "Optimization level (0-3)"
     <> value defaultOptimizationLevel)
-  llvmOptimization <- (Just <$> option optl
+  llvmOptimization <- optional (option optl
     (long "llvm-opt"
     <> help "LLVM optimization level (0-3). Same as regular optimization by default"))
-    <|> pure Nothing
   codeGenOptions <- do
     datasize <- option arrs
       ( long "datasize"
