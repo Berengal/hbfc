@@ -18,6 +18,7 @@ import           Control.Monad
 import qualified Data.ByteString.Char8               as BS
 import qualified Data.ByteString.Short               as BSS
 import           Data.Maybe
+import           Data.String
 import           Options.Applicative
 import           System.Exit
 import           System.IO
@@ -26,9 +27,12 @@ import           System.Process
 main :: IO ()
 main = do
   options@CO{..} <- execParser opts
-  when (outputDestination == Nothing && outputFormat == Executable) $ do
-    hPutStrLn stderr "Warning: Piping executable to stdout not supported, will write to - instead."
-  doCompile options
+  let isWriteExecutableToStdout = outputDestination == Nothing && outputFormat == Executable
+      newOutputDestination | isWriteExecutableToStdout = Just "a.out"
+                           | otherwise = outputDestination
+  when isWriteExecutableToStdout $ do
+    hPutStrLn stderr "Warning: Writing executable to stdout not supported, will write to 'a.out' instead."
+  doCompile options{outputDestination=newOutputDestination}
 
 doCompile :: CompilerOptions -> IO ()
 doCompile options@CO{..} = do
@@ -53,13 +57,16 @@ doCompile options@CO{..} = do
       writeOutput outputPath outputBytes
 
       if outputFormat == Executable
-        then do exit <- rawSystem "cc" ["-o", fromMaybe "-" outputDestination, objectPath]
+        then do exit <- rawSystem "cc" [ "-o"
+                                       , fromMaybe (error "Bug in compiler: calling cc without destination.") outputDestination
+                                       , objectPath
+                                       ]
                 exitWith exit
         else return ()
 
 compileToModule :: CompilerOptions -> BFProgram -> AST.Module
 compileToModule options = C.compileToModule inputName optLevel codeGenOpts
-  where inputName   = BSS.toShort . BS.pack . inputSource $ options
+  where inputName   = fromString . inputSource $ options
         codeGenOpts = codeGenOptions options
         optLevel    = optimizationLevel options
 
