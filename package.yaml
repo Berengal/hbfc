@@ -38,10 +38,8 @@ executables:
     source-dirs:         app
     ghc-options:
     - -O2
-    - -threaded
     - -rtsopts
-    - -with-rtsopts=-N2
-    - -with-rtsopts=-qg1
+    - -with-rtsopts=-A4M
     dependencies:
       - hbfc
       - optparse-applicative >= 0.14.3.0 && <0.15
@@ -52,10 +50,8 @@ executables:
     source-dirs:         app
     ghc-options:
     - -O2
-    - -threaded
     - -rtsopts
-    - -with-rtsopts=-N2
-    - -with-rtsopts=-qg1
+    - -with-rtsopts=-A4M
     dependencies:
       - hbfc
       - optparse-applicative >= 0.14.3.0 && <0.15
